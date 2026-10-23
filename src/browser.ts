@@ -67,11 +67,12 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         for(const candidate of candidates) {
           if(candidate.isClosed() || !sameCouponSite(candidate)) continue;
           try {
-            await candidate.waitForLoadState("domcontentloaded",{timeout:1200}).catch(()=>{});
+            await candidate.waitForLoadState("domcontentloaded",{timeout:1800}).catch(()=>{});
             const copy = candidate.locator('button,a,[role="button"]').filter({hasText:/^\s*copy(?: code)?\s*$/i}).first();
+            await copy.waitFor({state:"visible",timeout:2200}).catch(()=>{});
             if(!await copy.count() || !await copy.isVisible().catch(()=>false)) continue;
-            await copy.click({timeout:700,noWaitAfter:true});
-            await delay(60);
+            await copy.click({timeout:900,noWaitAfter:true,force:true});
+            await delay(90);
             const value=(await candidate.evaluate(()=>navigator.clipboard.readText()).catch(()=>"")).trim();
             if(validCode(value)) {
               add([{code:value,evidence:"coupon COPY clipboard",method:"html"}]);
@@ -152,7 +153,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
 
         attemptedClicks++;
         try {
-          const popupPromise = page.waitForEvent("popup",{timeout:1400}).catch(()=>undefined);
+          const popupPromise = page.waitForEvent("popup",{timeout:2200}).catch(()=>undefined);
           await target.scrollIntoViewIfNeeded().catch(()=>{});
           await target.click({timeout:1200,noWaitAfter:true,force:true});
           const popup = await popupPromise;
@@ -164,7 +165,8 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             continue;
           }
 
-          await popup.waitForLoadState("domcontentloaded",{timeout:1800}).catch(()=>{});
+          await popup.waitForLoadState("domcontentloaded",{timeout:2200}).catch(()=>{});
+          await popup.waitForURL(/visibleMatchId|seenMatchId/,{timeout:1800}).catch(()=>{});
           const revealId = (() => {
             try {
               const u = new URL(popup.url());
@@ -179,7 +181,11 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           }
           processedRevealIds.add(revealId);
 
-          const gotCode = await readClipboardCode(popup);
+          let gotCode = await readClipboardCode(popup);
+          if(!gotCode) {
+            await delay(350);
+            gotCode = await readClipboardCode(popup);
+          }
           if(!gotCode) {
             const modal = await readAndCloseModal(popup);
             if(modal.codes.length) add(modal.codes);
