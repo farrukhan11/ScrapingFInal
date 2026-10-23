@@ -36,3 +36,18 @@ The optional `--website` identifies the official merchant domain and annotates o
 - No Playwright, scraping, or AI extraction yet
 
 Keep `.env` private. Never commit API credentials.
+
+## Phase 2: Static extraction
+
+After a search, pass the generated JSON file to the extractor:
+
+```powershell
+pnpm coupon-search --brand "Citizen Watch" --website "citizenwatch.com" --countries US
+pnpm coupon-extract --input "output/search-YOUR_TIMESTAMP.json"
+```
+
+Use the actual filename from the first command. Results are saved to `output/extracted-search-YOUR_TIMESTAMP.json`.
+
+The extractor classifies sources, fetches public HTML, parses explicit coupon attributes and JSON state, and marks reveal-button pages as `needs_browser`. It does **not** click reveal buttons or verify codes at checkout. `blocked` and `error` are recorded separately. Respect website access policies and rate limits. HTML-only extraction may miss JavaScript-rendered codes.
+
+Run `pnpm typecheck` and `pnpm test` after `pnpm install`.
