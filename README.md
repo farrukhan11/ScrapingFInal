@@ -20,15 +20,15 @@ SERPER_API_KEY=your_key
 ## Run
 
 ```bash
-pnpm search -- --brand "Lulu Post"
-npm run search -- --brands "Lulu Post,Nike,Adidas" --countries US,UK,DE,FR
+pnpm search --brand "Citizen Watch" --website "citizenwatch.com" --countries US
+pnpm search --brands "Lulu Post,Nike,Adidas" --countries US,UK,DE,FR
 pnpm typecheck
 pnpm test
 ```
 
 Output is saved to `output/search-<timestamp>.json`, including results and per-query failures. Up to 10 organic results are requested per brand and region; fewer may be returned. Search queries use region-specific keywords and Serper `gl`/`hl` parameters. Search API usage is billable according to your Serper plan.
 
-## Scope
+The optional `--website` identifies the official merchant domain and annotates official-domain results. It is **not** appended to the Google search query, so third-party coupon results remain discoverable. With `--website`, use a single brand. Without `--countries`, all four regions are searched. The URL is not a guarantee of merchant identity for third-party coupon results.\n\n## Scope
 
 - Region-aware organic SERP discovery
 - Basic URL normalization and per-query deduplication
