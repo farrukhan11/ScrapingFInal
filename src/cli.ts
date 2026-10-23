@@ -1,9 +1,8 @@
 import "dotenv/config";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { searchBrand, regionNames, type Region, type SearchResult } from "./search.js";
-
-type BrandInput = { brand:string; website?:string; countries:Region[] };
+import { searchBrand, regionNames, type Region } from "./search.js";
+import { loadBrandBatch } from "./brand-input.js";
 
 async function parseArgs(argv: string[]) {
   const get = (flag: string) => {
@@ -11,20 +10,15 @@ async function parseArgs(argv: string[]) {
     return index >= 0 ? argv[index + 1] : undefined;
   };
   const input = get("--input");
-  if (input) {
-    const raw: unknown = JSON.parse(await readFile(resolve(input),"utf8"));
-    if (!Array.isArray(raw)) throw new Error("--input must be a JSON array");
-    const brands: BrandInput[] = raw.map((item:any) => ({brand:String(item.brand??"").trim(),website:item.website?String(item.website):undefined,countries:(item.countries??["US"]).map((x:string)=>String(x).toUpperCase()) as Region[]}));
-    if (brands.some(b=>!b.brand || b.countries.some(c=>!regionNames.includes(c)))) throw new Error("Invalid brand config");
-    return { brandInputs: brands };
-  }
+  if (input) return { brandInputs: await loadBrandBatch(input) };
+
   const brands = (get("--brands") ?? get("--brand") ?? "").split(",").map(s => s.trim()).filter(Boolean);
   const requested = (get("--countries") ?? "US,UK,DE,FR").split(",").map(s => s.trim().toUpperCase());
-  if (!brands.length) throw new Error("Provide --brand or --brands");
+  if (!brands.length) throw new Error("Provide --brand, --brands or --input");
   if (requested.some(s => !regionNames.includes(s as Region))) throw new Error("Invalid country; use US,UK,DE,FR");
   const website = get("--website");
   if (website && brands.length !== 1) throw new Error("--website supports one brand; use --brand");
-  return { brandInputs: brands.map(brand=>({brand,website,countries:[...new Set(requested)] as Region[]})) };
+  return { brandInputs: brands.map(brand=>({brand,website:website ?? `https://${brand.toLowerCase().replace(/\s+/g,"")}.com/`,countries:[...new Set(requested)] as Region[]})) };
 }
 
 async function main() {
