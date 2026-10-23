@@ -60,7 +60,7 @@ export function parseCoupons(html: string): { coupons: Coupon[]; revealDetected:
 export async function extractPage(result: SearchResult, fetcher: typeof fetch = fetch): Promise<Extraction> {
   const category = classify(result);
   const base = { url: result.url, brand: result.brand, country: result.country, category, requires_browser: false, coupons: [] as Coupon[] };
-  if (category === "community" || category === "eligibility") return { ...base, status: "skipped" };
+  if (category === "community") return { ...base, status: "skipped" };
   try {
     const response = await fetcher(result.url, { headers: { "User-Agent": "ScrapingFinal/0.2 (+static coupon research)", Accept: "text/html" }, signal: AbortSignal.timeout(15000), redirect: "follow" });
     if (response.status === 403 || response.status === 429) return { ...base, status: "blocked", httpStatus: response.status };
