@@ -21,6 +21,7 @@ const organicSchema = z.object({
 export type SearchResult = {
   brand: string; country: Region; keyword: string;
   position: number; title: string; url: string; snippet: string;
+  officialDomain?: string; isOfficialWebsite?: boolean;
 };
 export function normalizeUrl(value: string): string | null {
   try {
@@ -36,13 +37,22 @@ export function normalizeUrl(value: string): string | null {
 export function buildKeyword(brand: string, country: Region): string {
   return `${brand.trim()} ${regions[country].suffix}`;
 }
+export function normalizeOfficialDomain(input: string): string {
+  const raw = input.trim();
+  if (!raw) throw new Error('Website must not be empty');
+  const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname.includes('.')) throw new Error('Invalid official website');
+  return parsed.hostname.toLowerCase().replace(/^www\./, '');
+}
 export async function searchBrand(
   brand: string, country: Region, apiKey: string,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  officialWebsite?: string
 ): Promise<SearchResult[]> {
   if (!brand.trim()) throw new Error("Brand must not be empty");
   if (!apiKey.trim()) throw new Error("SERPER_API_KEY is required");
   const keyword = buildKeyword(brand, country);
+  const officialDomain = officialWebsite ? normalizeOfficialDomain(officialWebsite) : undefined;
   const region = regions[country];
   let response: Response | undefined;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -72,6 +82,7 @@ export async function searchBrand(
     return [{
       brand, country, keyword, position: item.position ?? index + 1,
       title: item.title ?? "", url, snippet: item.snippet ?? "",
+      ...(officialDomain ? { officialDomain, isOfficialWebsite: new URL(url).hostname.toLowerCase().replace(/^www\./, "") === officialDomain } : {}),
     }];
   });
 }
