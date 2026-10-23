@@ -4,10 +4,10 @@ Search Google organic results for coupon-related brand queries across US, UK, Ge
 
 ## Setup
 
-Requires Node.js 20+.
+Requires Node.js 20+ and pnpm 10+.
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -20,10 +20,10 @@ SERPER_API_KEY=your_key
 ## Run
 
 ```bash
-npm run search -- --brand "Lulu Post"
+pnpm search -- --brand "Lulu Post"
 npm run search -- --brands "Lulu Post,Nike,Adidas" --countries US,UK,DE,FR
-npm run typecheck
-npm test
+pnpm typecheck
+pnpm test
 ```
 
 Output is saved to `output/search-<timestamp>.json`, including results and per-query failures. Up to 10 organic results are requested per brand and region; fewer may be returned. Search queries use region-specific keywords and Serper `gl`/`hl` parameters. Search API usage is billable according to your Serper plan.
