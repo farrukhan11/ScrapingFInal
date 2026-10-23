@@ -1,7 +1,7 @@
 import type { Page } from "playwright";
 import type { Coupon } from "./extract.js";
 
-const stop = /^(?:choose|select|your|the|offer|deals|shop|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|details|now|today|shipping|claim|citizen)$/i;
+const stop = /^(?:choose|select|your|the|offer|deals|shop|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|details|now|today|shipping|claim|citizen|sale|required|strict|at|to|for|from|with|in|of|on|or|and|we|see|get|visit|product|customer|newsletter)$/i;
 export const isLikelyCode = (value:string) => /^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(value) && !stop.test(value);
 export type ModalResult = {codes:Coupon[];modalFound:boolean;closed:boolean;preview?:string};
 
