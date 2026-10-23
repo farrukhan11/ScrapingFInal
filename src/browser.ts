@@ -7,7 +7,9 @@ import type { SearchResult } from "./search.js";
 const revealPattern = /(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i;
 const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
 const maxClicks = 12;
-const codeNearLabel = /(?:coupon|promo|discount|voucher)\s*code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,24})/gi;
+const codeNearLabel = /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]\s*([A-Z0-9][A-Z0-9_-]{3,24})/gi;
+const rejectedTokens = /^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping)$/i;
+const validCode = (code: string) => /^[a-z0-9][a-z0-9_-]{3,24}$/i.test(code) && !rejectedTokens.test(code) && (/[0-9]/.test(code) || /[A-Z]/.test(code.slice(1)));
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 const safeFile = (name: string) => name.replace(/[^a-z0-9-]/gi, "_").slice(0, 90);
 export type BrowserExtraction = Extraction & { finalUrl?: string; pageTitle?: string; revealButtons?: number; attemptedClicks?: number; screenshot?: string; diagnostics?: string[] };
@@ -22,7 +24,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   const codes = new Map<string,Coupon>();
-  const add = (items: Coupon[]) => { for(const c of items) codes.set(c.code.toUpperCase(),c); };
+  const add = (items: Coupon[]) => { for(const c of items) if(validCode(c.code)) codes.set(c.code.toUpperCase(),c); };
   const diagnostics: string[] = [];
   let httpStatus: number | undefined;
   let attemptedClicks = 0;
@@ -67,7 +69,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             for(const text of [visibleText,...dialogText]) {
               for(const match of text.matchAll(codeNearLabel)) {
                 const code=match[1];
-                if(!/^(?:SHOW|REVEAL|COPY|APPLY|COUPON|DISCOUNT|PROMO|BUTTON)$/i.test(code) && (/[0-9]/.test(code) || code.length>=6))
+                if(validCode(code))
                   add([{code,evidence:"visible coupon label",method:"html"}]);
               }
             }
@@ -99,7 +101,10 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           if (!await el.isVisible().catch(()=>false)) continue;
           const signature = await el.evaluate((node)=> {
             const rect = node.getBoundingClientRect();
-            return [node.textContent?.trim().slice(0,100),Math.round(rect.x/15),Math.round(rect.y/15),node.getAttribute("href")].join("|");
+            const href=node.getAttribute("href") ?? "";
+            const parent=node.closest("[data-id],[data-offer-id],[data-coupon-id]");
+            const stableId=parent?.getAttribute("data-id") ?? parent?.getAttribute("data-offer-id") ?? parent?.getAttribute("data-coupon-id") ?? "";
+            return [stableId,href,node.textContent?.trim().slice(0,80),Math.round(rect.y/50)].join("|");
           }).catch(()=>"");
           if (!signature || clicked.has(signature)) continue;
           target=el;key=signature;break;
