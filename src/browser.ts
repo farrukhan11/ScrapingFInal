@@ -42,6 +42,23 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
     try {
       context = await browser.newContext({locale:"en-US",viewport:{width:1365,height:900},acceptDownloads:false,permissions:["clipboard-read","clipboard-write"]});
       page = await context.newPage();
+      // Keep the coupon-list tab stable. Reveal clicks often try to navigate the
+      // opener to the merchant while opening the code in a same-site popup.
+      // Abort only off-site top-level document navigations on the master page.
+      await page.route("**/*", async route => {
+        const req = route.request();
+        if (req.isNavigationRequest() && req.frame() === page!.mainFrame()) {
+          try {
+            const host = new URL(req.url()).hostname.replace(/^www\./,"");
+            if (host !== siteHost) {
+              diagnostics.push("Blocked master-tab merchant navigation: "+req.url());
+              await route.abort();
+              return;
+            }
+          } catch {}
+        }
+        await route.continue();
+      });
       page.on("dialog",dialog=>{ diagnostics.push("Dialog: "+dialog.type()); void dialog.dismiss().catch(()=>{}); });
       context.on("page", popup => {
         if (popup === page) return;
@@ -184,9 +201,9 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       let popupCountBefore = 0;
       for(let step=0;!skipClickFallback && step<maxClicks;step++) {
         if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
-          diagnostics.push("Merchant redirect detected; returning to coupon list");
-          await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:20000}).catch(()=>{});
-          await delay(250);
+          diagnostics.push("Unexpected master-tab navigation; restoring coupon list");
+          await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:8000}).catch(()=>{});
+          await delay(120);
         }
         const count = await buttons.count();
         let target: ReturnType<typeof buttons.nth> | undefined;
@@ -209,8 +226,9 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         attemptedClicks++;
         try {
           popupCountBefore = popupPages.length;
-          await target.click({timeout:1800,noWaitAfter:true});
-          await delay(250);
+          await target.scrollIntoViewIfNeeded().catch(()=>{});
+          await target.click({timeout:900,noWaitAfter:true,force:true});
+          await delay(120);
           const latestPopup = popupPages.length > popupCountBefore ? popupPages[popupPages.length-1] : undefined;
           const gotCode = await readClipboardCode(latestPopup);
           if(!gotCode) await readModals();
@@ -218,7 +236,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
         } catch(err) {
           diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
-          await delay(180);
+          await delay(80);
           const latestPopup = popupPages.length ? popupPages[popupPages.length-1] : undefined;
           const gotCode = await readClipboardCode(latestPopup);
           if(!gotCode) await readModals();
