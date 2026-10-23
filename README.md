@@ -20,8 +20,8 @@ SERPER_API_KEY=your_key
 ## Run
 
 ```bash
-pnpm search --brand "Citizen Watch" --website "citizenwatch.com" --countries US
-pnpm search --brands "Lulu Post,Nike,Adidas" --countries US,UK,DE,FR
+pnpm coupon-search --brand "Citizen Watch" --website "citizenwatch.com" --countries US
+pnpm coupon-search --brands "Lulu Post,Nike,Adidas" --countries US,UK,DE,FR
 pnpm typecheck
 pnpm test
 ```
