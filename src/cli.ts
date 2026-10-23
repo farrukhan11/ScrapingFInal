@@ -31,14 +31,14 @@ async function main() {
   const { brandInputs } = await parseArgs(process.argv.slice(2));
   const apiKey = process.env.SERPER_API_KEY ?? "";
   if (!apiKey) throw new Error("Set SERPER_API_KEY in .env");
-  const results: SearchResult[] = [];
+  const searches: { brand:string; country:Region; results:{url:string}[] }[] = [];
   const failures: { brand: string; country: Region; error: string }[] = [];
   for (const item of brandInputs) {
     for (const country of item.countries) {
       const brand=item.brand;
       try {
         const found = await searchBrand(brand, country, apiKey, fetch, item.website);
-        results.push(...found);
+        searches.push({brand,country,results:found.map(item=>({url:item.url}))});
         console.log(`${brand} / ${country}: ${found.length} results`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -49,8 +49,9 @@ async function main() {
   }
   await mkdir(resolve("output"), { recursive: true });
   const file = resolve("output", `search-${Date.now()}.json`);
-  await writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString(), results, failures }, null, 2));
-  console.log(`Saved ${results.length} results to ${file}`);
+  await writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString(), searches, failures }, null, 2));
+  const total=searches.reduce((sum,s)=>sum+s.results.length,0);
+  console.log(`Saved ${total} results to ${file}`);
   if (failures.length) process.exitCode = 1;
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
