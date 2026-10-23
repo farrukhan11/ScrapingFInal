@@ -124,7 +124,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       };
       await inspect();
       const directRevealUrls: string[] = [];
-      const activeRevealButtons = () => page.locator('button,a,[role="button"]').filter({hasText:revealPattern}).filter({hasNot: page.locator('text=/offer expired|expired/i')});
+      const activeRevealButtons = () => page!.locator('button,a,[role="button"]').filter({hasText:revealPattern}).filter({hasNot: page!.locator('text=/offer expired|expired/i')});
       const buttons = activeRevealButtons();
       revealButtons = await buttons.count();
       diagnostics.push("Initial active reveal candidates: "+revealButtons+"; max codes: "+maxCodesPerSite);
@@ -187,8 +187,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
               return u.searchParams.get("visibleMatchId")
                 ?? u.searchParams.get("seenMatchId")
                 ?? u.searchParams.get("u")
-                ?? (u.origin + u.pathname + u.hash)
-                ?? u.toString();
+                ?? (u.origin + u.pathname + u.hash);
             } catch { return popup.url(); }
           })();
 
