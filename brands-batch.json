@@ -1,0 +1,72 @@
+[
+  {
+    "brand": "Revomadic",
+    "website": "https://revomadic.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "Doulton",
+    "website": "https://doulton.com/",
+    "countries": [
+      "UK"
+    ]
+  },
+  {
+    "brand": "Boogie Bounce",
+    "website": "https://www.boogiebounce.com/",
+    "countries": [
+      "UK"
+    ]
+  },
+  {
+    "brand": "Rexing",
+    "website": "https://rexing.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "XGIMI",
+    "website": "https://us.xgimi.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "My EarFun",
+    "website": "https://www.myearfun.com/uk",
+    "countries": [
+      "UK"
+    ]
+  },
+  {
+    "brand": "PGYTECH",
+    "website": "https://www.pgytech.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "Sunshine Tienda",
+    "website": "https://www.sunshinetienda.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "Theatre Tickets Direct",
+    "website": "https://www.theatreticketsdirect.co.uk/",
+    "countries": [
+      "UK"
+    ]
+  },
+  {
+    "brand": "Mama Kana",
+    "website": "https://mamakana.com/",
+    "countries": [
+      "FR"
+    ]
+  }
+]
