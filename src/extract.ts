@@ -7,7 +7,7 @@ export type Extraction = { url: string; brand: string; country: string; category
 
 const couponDomains = ["retailmenot.com","couponfollow.com","savings.com","marieclaire.com","coupons.com","rakuten.com","couponbirds.com"];
 const eligibilityDomains = ["studentbeans.com","id.me","unidays.com"];
-const communityDomains = ["reddit.com","quora.com"];
+const communityDomains = ["reddit.com","quora.com","facebook.com","instagram.com","x.com","twitter.com"];
 const hostMatches = (host: string, domain: string) => host === domain || host.endsWith("." + domain);
 export function classify(result: SearchResult): Category {
   const host = new URL(result.url).hostname.toLowerCase();
