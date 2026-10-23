@@ -8,7 +8,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "coupon-search": "tsx src/cli.ts",
     "coupon-extract": "tsx src/extract-cli.ts",
-    "coupon-browser": "tsx src/browser-cli.ts"
+    "coupon-browser": "tsx src/browser-cli.ts",
+    "deal-browser": "tsx src/deal-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
