@@ -12,9 +12,9 @@ const hostMatches = (host: string, domain: string) => host === domain || host.en
 export function classify(result: SearchResult): Category {
   const host = new URL(result.url).hostname.toLowerCase();
   if (result.officialDomain && isOfficialHost(host, result.officialDomain)) return "official";
-  if (couponDomains.some(d => hostMatches(host,d)) || /coupon|promo code|discount code|gutscheincode|code promo/i.test(result.title)) return "coupon";
   if (eligibilityDomains.some(d => hostMatches(host,d))) return "eligibility";
   if (communityDomains.some(d => hostMatches(host,d))) return "community";
+  if (couponDomains.some(d => hostMatches(host,d)) || /coupon|promo code|discount code|gutscheincode|code promo/i.test(result.title)) return "coupon";
   return "other";
 }
 const codePattern = /^[A-Z0-9][A-Z0-9_-]{3,24}$/i;
