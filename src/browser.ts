@@ -132,7 +132,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       // The popup wait is registered before click, matching Playwright's recommended pattern.
       const processedRevealIds = new Set<string>();
       let scanIndex = 0;
-      const maxAttempts = Math.min(Math.max(revealButtons, 12), 30);
+      const maxAttempts = Math.min(revealButtons, 30);
 
       for(let attempt=0; attempt<maxAttempts && codes.size < maxCodesPerSite; attempt++) {
         // Restore coupon list only when the opener actually navigated away.
