@@ -42,23 +42,6 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
     try {
       context = await browser.newContext({locale:"en-US",viewport:{width:1365,height:900},acceptDownloads:false,permissions:["clipboard-read","clipboard-write"]});
       page = await context.newPage();
-      // Keep the coupon-list tab stable. Reveal clicks often try to navigate the
-      // opener to the merchant while opening the code in a same-site popup.
-      // Abort only off-site top-level document navigations on the master page.
-      await page.route("**/*", async route => {
-        const req = route.request();
-        if (req.isNavigationRequest() && req.frame() === page!.mainFrame()) {
-          try {
-            const host = new URL(req.url()).hostname.replace(/^www\./,"");
-            if (host !== siteHost) {
-              diagnostics.push("Blocked master-tab merchant navigation: "+req.url());
-              await route.abort();
-              return;
-            }
-          } catch {}
-        }
-        await route.continue();
-      });
       page.on("dialog",dialog=>{ diagnostics.push("Dialog: "+dialog.type()); void dialog.dismiss().catch(()=>{}); });
       context.on("page", popup => {
         if (popup === page) return;
@@ -138,127 +121,77 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         }
       };
       await inspect();
-      // Fast path: many coupon sites expose a stable reveal URL/offer id in the DOM.
-      // Process unique reveal targets directly to avoid affiliate redirects and duplicate clicks.
-      const directRevealUrls = await page.evaluate((baseUrl) => {
-        const base = new URL(baseUrl);
-        const out = new Set<string>();
-        const els = Array.from(document.querySelectorAll('a,button,[role="button"],[data-match-id],[data-offer-id],[data-id]'));
-        for (const el of els) {
-          const text = (el.textContent ?? "") + " " + (el.getAttribute("aria-label") ?? "");
-          const attrs = Array.from(el.attributes).map(a => [a.name,a.value] as const);
-          const href = el.getAttribute("href");
-          if (href) {
-            try {
-              const u = new URL(href, base);
-              if (u.hostname === base.hostname && (u.searchParams.has("visibleMatchId") || u.searchParams.has("seenMatchId"))) out.add(u.toString());
-            } catch {}
-          }
-          if (!/(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i.test(text)) continue;
-          for (const [name,value] of attrs) {
-            if (!/match.?id|offer.?id|coupon.?id/i.test(name) || !/^\d{5,}$/.test(value)) continue;
-            const u = new URL(base);
-            u.searchParams.set("seenMatchId",value);
-            u.searchParams.set("visibleMatchId",value);
-            out.add(u.toString());
-          }
-        }
-        return [...out];
-      }, result.url).catch(()=>[] as string[]);
-      if (directRevealUrls.length) {
-        diagnostics.push("Direct reveal targets: "+directRevealUrls.length);
-        const seenTargets = new Set<string>();
-        for (const revealUrl of directRevealUrls.slice(0,50)) {
-          const id = new URL(revealUrl).searchParams.get("visibleMatchId") ?? revealUrl;
-          if (seenTargets.has(id)) continue;
-          seenTargets.add(id);
-          attemptedClicks++;
-          const worker = await context.newPage();
-          try {
-            await worker.goto(revealUrl,{waitUntil:"domcontentloaded",timeout:8000});
-            const got = await readClipboardCode(worker);
-            if (!got) {
-              const modal = await readAndCloseModal(worker);
-              if (modal.codes.length) add(modal.codes);
-              diagnostics.push("Direct target "+id+": "+(modal.codes.map(c=>c.code).join(",") || "no code"));
-            } else {
-              diagnostics.push("Direct target "+id+": clipboard code captured");
-            }
-          } catch (error) {
-            diagnostics.push("Direct target "+id+" failed: "+String(error).slice(0,120));
-          } finally {
-            if (!worker.isClosed()) await worker.close().catch(()=>{});
-          }
-        }
-      }
+      const directRevealUrls: string[] = [];
       const buttons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
       revealButtons = await buttons.count();
       diagnostics.push("Initial reveal candidates: "+revealButtons);
-      // Fallback for sites that do not expose reveal targets in markup.
-      // Re-query the DOM every iteration and track processed reveal IDs from popups.
+      // Stable fallback: process reveal buttons sequentially.
+      // The popup wait is registered before click, matching Playwright's recommended pattern.
       const processedRevealIds = new Set<string>();
-      const skipClickFallback = directRevealUrls.length > 0 && codes.size > 0;
       let scanIndex = 0;
-      for(let step=0;!skipClickFallback && step<maxClicks;step++) {
-        if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
-          diagnostics.push("Unexpected master-tab navigation; restoring coupon list");
-          await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:8000}).catch(()=>{});
-          await delay(120);
+      const maxAttempts = Math.min(Math.max(revealButtons, 12), 30);
+
+      for(let attempt=0; attempt<maxAttempts; attempt++) {
+        // Restore coupon list only when the opener actually navigated away.
+        if (new URL(page.url()).hostname.replace(/^www\./,"") !== siteHost) {
+          const back = await page.goBack({waitUntil:"domcontentloaded",timeout:3000}).catch(()=>null);
+          if(!back || new URL(page.url()).hostname.replace(/^www\./,"") !== siteHost) {
+            await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:7000}).catch(()=>{});
+          }
+          await delay(100);
         }
 
-        // Fresh locator after every navigation/re-render.
         const freshButtons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
         const count = await freshButtons.count();
-        if (!count) break;
+        if(!count) break;
 
-        let target: ReturnType<typeof freshButtons.nth> | undefined;
-        let targetIndex = -1;
-        for(let offset=0; offset<count; offset++) {
-          const i=(scanIndex+offset)%count;
-          const el=freshButtons.nth(i);
-          if(!await el.isVisible().catch(()=>false)) continue;
-          target=el;targetIndex=i;break;
-        }
-        if(!target || targetIndex<0) break;
-        scanIndex=(targetIndex+1)%Math.max(count,1);
+        const index = scanIndex % count;
+        scanIndex++;
+        const target = freshButtons.nth(index);
+        if(!await target.isVisible().catch(()=>false)) continue;
+
         attemptedClicks++;
-
-        const beforePages = new Set(context.pages());
         try {
+          const popupPromise = page.waitForEvent("popup",{timeout:1400}).catch(()=>undefined);
           await target.scrollIntoViewIfNeeded().catch(()=>{});
-          const popupPromise = page.waitForEvent("popup",{timeout:1200}).catch(()=>undefined);
-          await target.dispatchEvent("click");
+          await target.click({timeout:1200,noWaitAfter:true,force:true});
           const popup = await popupPromise;
-          await delay(80);
 
-          const candidate = popup ?? context.pages().find(p=>!beforePages.has(p) && p!==page);
-          if(candidate) {
-            await candidate.waitForLoadState("domcontentloaded",{timeout:1200}).catch(()=>{});
-            const revealId = (()=>{try{return new URL(candidate.url()).searchParams.get("visibleMatchId") ?? new URL(candidate.url()).searchParams.get("seenMatchId") ?? candidate.url();}catch{return candidate.url();}})();
-            if(processedRevealIds.has(revealId)) {
-              diagnostics.push("Duplicate reveal skipped: "+revealId);
-              if(!candidate.isClosed()) await candidate.close().catch(()=>{});
-              continue;
-            }
-            processedRevealIds.add(revealId);
-            const gotCode = await readClipboardCode(candidate);
-            if(!gotCode) {
-              const modal=await readAndCloseModal(candidate);
-              if(modal.codes.length) add(modal.codes);
-            }
-            if(!candidate.isClosed()) await candidate.close().catch(()=>{});
-            diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
+          if(!popup) {
+            const gotInPlace = await readClipboardCode(page);
+            if(!gotInPlace) await readModals();
+            diagnostics.push("Click "+attemptedClicks+" in-place: "+codes.size+" codes");
             continue;
           }
 
-          // Some sites reveal in-place without a popup.
-          const gotCode = await readClipboardCode(page);
-          if(!gotCode) await readModals();
-          diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
+          await popup.waitForLoadState("domcontentloaded",{timeout:1800}).catch(()=>{});
+          const revealId = (() => {
+            try {
+              const u = new URL(popup.url());
+              return u.searchParams.get("visibleMatchId") ?? u.searchParams.get("seenMatchId") ?? u.toString();
+            } catch { return popup.url(); }
+          })();
+
+          if(processedRevealIds.has(revealId)) {
+            diagnostics.push("Duplicate reveal skipped: "+revealId);
+            if(!popup.isClosed()) await popup.close().catch(()=>{});
+            continue;
+          }
+          processedRevealIds.add(revealId);
+
+          const gotCode = await readClipboardCode(popup);
+          if(!gotCode) {
+            const modal = await readAndCloseModal(popup);
+            if(modal.codes.length) add(modal.codes);
+          }
+          diagnostics.push("Reveal "+revealId+": "+codes.size+" codes");
+          if(!popup.isClosed()) await popup.close().catch(()=>{});
         } catch(err) {
-          diagnostics.push("Click "+attemptedClicks+" skipped: "+String(err).slice(0,140));
+          diagnostics.push("Click "+attemptedClicks+" skipped: "+String(err).slice(0,120));
         }
       }
+
+      const skipClickFallback = true;
       if(!skipClickFallback) {
         await delay(80);
         await readClipboardCode();
