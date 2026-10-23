@@ -9,9 +9,9 @@ const revealPattern = /(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon
 const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
 const maxClicks = 30;
 const maxCodesPerSite = 10;
-const codeNearLabel = /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]\s*([A-Z0-9][A-Z0-9_-]{3,24})/gi;
+const codeNearLabel = /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi;
 const rejectedTokens = /^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping)$/i;
-const validCode = (code: string) => /^[a-z0-9][a-z0-9_-]{3,24}$/i.test(code) && !rejectedTokens.test(code) && (/[0-9]/.test(code) || /[A-Z]/.test(code.slice(1)));
+const validCode = (code: string) => /^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(code) && !rejectedTokens.test(code);
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 const safeFile = (name: string) => name.replace(/[^a-z0-9-]/gi, "_").slice(0, 90);
 export type BrowserExtraction = Extraction & { finalUrl?: string; pageTitle?: string; revealButtons?: number; attemptedClicks?: number; screenshot?: string; diagnostics?: string[] };
@@ -61,6 +61,30 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       if (await consent.count() && await consent.isVisible().catch(()=>false)) {
         await consent.click({timeout:2000}).catch(()=>{});
       }
+      const readVisibleCodes = async (candidate: Page, evidence="visible coupon text") => {
+        if(candidate.isClosed() || !sameCouponSite(candidate)) return 0;
+        const before=codes.size;
+        try {
+          const html=await candidate.content();
+          add(parseCoupons(html).coupons);
+          const text=await candidate.locator("body").innerText({timeout:2500}).catch(()=>"");
+          const patterns=[
+            /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
+            /(?:use|enter|apply)\s+(?:code\s+)?([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
+            /(?:rabattcode|gutscheincode)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
+            /code\s+promo\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi
+          ];
+          for(const re of patterns) {
+            for(const match of text.matchAll(re)) add([{code:match[1],evidence,method:"html"}]);
+          }
+          const explicit=await candidate.locator("[data-code],[data-coupon-code],[data-promo-code],input[value]").evaluateAll(els =>
+            els.map(el=>el.getAttribute("data-code")??el.getAttribute("data-coupon-code")??el.getAttribute("data-promo-code")??el.getAttribute("value"))
+              .filter((v):v is string=>Boolean(v))
+          ).catch(()=>[]);
+          for(const value of explicit) if(validCode(value.trim())) add([{code:value.trim(),evidence:"browser attribute/value",method:"html"}]);
+        } catch {}
+        return codes.size-before;
+      };
       const readClipboardCode = async (preferred?: Page) => {
         const candidates = preferred
           ? [preferred]
@@ -116,12 +140,13 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             }
             const values = await candidate.locator("[data-code],[data-coupon-code],[data-promo-code]").evaluateAll(els=>els.flatMap(el=>["data-code","data-coupon-code","data-promo-code"].map(k=>el.getAttribute(k)).filter((v):v is string=>Boolean(v))));
             for(const value of values) {
-              if (/^[a-z0-9][a-z0-9_-]{3,24}$/i.test(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
+              if (validCode(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
             }
             diagnostics.push("Inspected "+candidate.url()+"; codes so far: "+codes.size);
           } catch (error) { diagnostics.push("Inspect failed: "+String(error).slice(0,120)); }
         }
       };
+      await readVisibleCodes(page,"initial visible coupon text");
       await inspect();
       const directRevealUrls: string[] = [];
       const activeRevealButtons = () => page!.locator('button,a,[role="button"]').filter({hasText:revealPattern}).filter({hasNot: page!.locator('text=/offer expired|expired/i')});
@@ -173,14 +198,18 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           const popup = await popupPromise;
 
           if(!popup) {
+            await delay(250);
+            await readVisibleCodes(page,"revealed in-page coupon text");
             const gotInPlace = await readClipboardCode(page);
             if(!gotInPlace) await readModals();
+            await page.keyboard.press("Escape").catch(()=>{});
             diagnostics.push("Click "+attemptedClicks+" in-place: "+codes.size+" codes");
             continue;
           }
 
           await popup.waitForLoadState("domcontentloaded",{timeout:2200}).catch(()=>{});
-          await popup.waitForURL(/visibleMatchId|seenMatchId/,{timeout:1800}).catch(()=>{});
+          await delay(250);
+          await readVisibleCodes(popup,"revealed popup coupon text");
           const revealId = (() => {
             try {
               const u = new URL(popup.url());
@@ -207,6 +236,8 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             const modal = await readAndCloseModal(popup);
             if(modal.codes.length) add(modal.codes);
           }
+          await readVisibleCodes(page,"coupon page text after reveal");
+          await page.keyboard.press("Escape").catch(()=>{});
           diagnostics.push("Reveal "+revealId+": "+codes.size+" codes");
           if(!popup.isClosed()) await popup.close().catch(()=>{});
         } catch(err) {
