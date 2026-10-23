@@ -10,7 +10,7 @@ const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
 const maxClicks = 30;
 const maxCodesPerSite = 10;
 const codeNearLabel = /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi;
-const rejectedTokens = /^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping)$/i;
+const rejectedTokens = /^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping|sale|printable|required|strict|into|per|at|to|for|from|with|in|of|on|or|and|we|see|get|visit|full|less|quantity|default|failed|submit|last|first|privacy|cookies|cancelconsent|product|customer|newsletter|updated|verified|available|offering|want|right|worked|one|is|var|find|must|them|all|up|check|page|currently|saves|releases|device|href|contact|other|lane|bv)$/i;
 const validCode = (code: string) => /^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(code) && !rejectedTokens.test(code);
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 const safeFile = (name: string) => name.replace(/[^a-z0-9-]/gi, "_").slice(0, 90);
@@ -70,15 +70,15 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           const text=await candidate.locator("body").innerText({timeout:2500}).catch(()=>"");
           const patterns=[
             /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
-            /(?:use|enter|apply)\s+(?:code\s+)?([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
+            /(?:use|enter|apply)\s+(?:promo\s+|coupon\s+|discount\s+)?code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
             /(?:rabattcode|gutscheincode)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
             /code\s+promo\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi
           ];
           for(const re of patterns) {
             for(const match of text.matchAll(re)) add([{code:match[1],evidence,method:"html"}]);
           }
-          const explicit=await candidate.locator("[data-code],[data-coupon-code],[data-promo-code],input[value]").evaluateAll(els =>
-            els.map(el=>el.getAttribute("data-code")??el.getAttribute("data-coupon-code")??el.getAttribute("data-promo-code")??el.getAttribute("value"))
+          const explicit=await candidate.locator("[data-code],[data-coupon-code],[data-promo-code],[itemprop=\"discountCode\"],.coupon-code,.promo-code").evaluateAll(els =>
+            els.map(el=>el.getAttribute("data-code")??el.getAttribute("data-coupon-code")??el.getAttribute("data-promo-code")??el.getAttribute("content")??(el.textContent??"").trim())
               .filter((v):v is string=>Boolean(v))
           ).catch(()=>[]);
           for(const value of explicit) if(validCode(value.trim())) add([{code:value.trim(),evidence:"browser attribute/value",method:"html"}]);
@@ -138,7 +138,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
                   add([{code,evidence:"visible coupon label",method:"html"}]);
               }
             }
-            const values = await candidate.locator("[data-code],[data-coupon-code],[data-promo-code]").evaluateAll(els=>els.flatMap(el=>["data-code","data-coupon-code","data-promo-code"].map(k=>el.getAttribute(k)).filter((v):v is string=>Boolean(v))));
+            const values = await candidate.locator("[data-code],[data-coupon-code],[data-promo-code],[itemprop=\"discountCode\"],.coupon-code,.promo-code").evaluateAll(els=>els.map(el=>el.getAttribute("data-code")??el.getAttribute("data-coupon-code")??el.getAttribute("data-promo-code")??el.getAttribute("content")??(el.textContent??"").trim()).filter((v):v is string=>Boolean(v)));
             for(const value of values) {
               if (validCode(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
             }
