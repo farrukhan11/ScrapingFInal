@@ -50,7 +50,10 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
       ? row.split("|").map(x=>x.trim()).filter(Boolean)
       : row.split(/\t|,/).map(x=>x.trim()).filter(Boolean);
     if(cells.length<2) continue;
-    const website=normalizeWebsite(cells[0].replace(/^\[|\]$/g,"").split(/s+/)[0]);
+    const rawWebsiteCell=cells[0];
+    const markdownUrl=rawWebsiteCell.match(/\]\((https?:\/\/[^\s")]+)[^)]*\)/i)?.[1];
+    const plain=rawWebsiteCell.replace(/\[[^\]]+\]\([^)]*\)/g,"").trim();
+    const website=normalizeWebsite(markdownUrl ?? plain.replace(/^\[|\]$/g,"").split(/\s+/)[0]);
     const country=String(cells[cells.length-1]).toUpperCase() as Region;
     if(!countrySet.has(country)) continue;
     out.push({brand:deriveBrand(website),website,countries:[country]});
