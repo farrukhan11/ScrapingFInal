@@ -3,7 +3,7 @@ import { z } from "zod";
 export const regions = {
   US: { gl: "us", hl: "en", suffix: "coupon code" },
   UK: { gl: "uk", hl: "en", suffix: "discount code" },
-  DE: { gl: "de", hl: "de", suffix: "Gutscheincode" },
+  DE: { gl: "de", hl: "de", suffix: "Rabattcode" },
   FR: { gl: "fr", hl: "fr", suffix: "code promo" },
 } as const;
 export type Region = keyof typeof regions;
