@@ -27,9 +27,10 @@ export async function readAndCloseModal(page: Page): Promise<ModalResult> {
     return {found:true,text,tokens};
   }).catch(()=>({found:false,text:"",tokens:[] as string[]}));
   if(!raw.found) return {codes:[],modalFound:false,closed:false};
-  const candidates = raw.tokens.filter(valid);
+  const beforeCopy = raw.text.split(/\bCOPY\b/i)[0] ?? "";
+  const candidates = raw.tokens.filter(token => valid(token) && beforeCopy.includes(token));
   const codes:Coupon[]=[];
-  for(const code of new Set(candidates)) {
+  for(const code of new Set(candidates.slice(-3))) {
     // Require the coupon token to appear adjacent to a COPY control in modal text.
     if(!raw.text.includes(code) || !/\bcopy\b/i.test(raw.text)) continue;
     codes.push({code,evidence:"visible reveal modal",method:"html"});
