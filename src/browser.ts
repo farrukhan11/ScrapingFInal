@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { classify, parseCoupons, type Coupon, type Extraction } from "./extract.js";
 import type { SearchResult } from "./search.js";
+import { readAndCloseModal } from "./modal.js";
 
 const revealPattern = /(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i;
 const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
@@ -33,6 +34,8 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
   let pageTitle = "";
   let screenshot: string | undefined;
   const popupPages: Page[] = [];
+  const siteHost = new URL(result.url).hostname.replace(/^www\./,"");
+  const sameCouponSite = (p: Page) => { try { const h=new URL(p.url()).hostname;return h===siteHost || h==="www."+siteHost; } catch {return false;} };
   const snapshots: Array<{url:string;visibleText:string;dialogText:string[]}> = [];
   try {
     const browser = await chromium.launch({headless:!options.headed});
@@ -44,6 +47,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         if (popup === page) return;
         popupPages.push(popup);
         diagnostics.push("Popup opened (retained): "+popup.url());
+        popup.on("domcontentloaded",()=>{ if(!sameCouponSite(popup)) { diagnostics.push("Affiliate tab: "+popup.url()); void popup.close().catch(()=>{}); } });
         popup.on("dialog",dialog=>void dialog.dismiss().catch(()=>{}));
       });
       const response = await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:30000});
@@ -56,9 +60,19 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       if (await consent.count() && await consent.isVisible().catch(()=>false)) {
         await consent.click({timeout:2000}).catch(()=>{});
       }
+      const readModals = async () => {
+        for(const candidate of [page!, ...popupPages]) {
+          if(candidate.isClosed() || !sameCouponSite(candidate)) continue;
+          const modal=await readAndCloseModal(candidate);
+          if(modal.modalFound) {
+            add(modal.codes);
+            diagnostics.push("Modal on "+candidate.url()+": "+modal.codes.map(c=>c.code).join(",")+" closed="+modal.closed+" preview="+(modal.preview??"").slice(0,140));
+          }
+        }
+      };
       const inspect = async () => {
         for (const candidate of [page!, ...popupPages]) {
-          if (candidate.isClosed()) continue;
+          if (candidate.isClosed() || !sameCouponSite(candidate)) continue;
           try {
             await candidate.waitForLoadState("domcontentloaded",{timeout:3500}).catch(()=>{});
             const html = await candidate.content();
@@ -115,15 +129,18 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         try {
           await target.click({timeout:4000,noWaitAfter:true});
           await delay(900);
+          await readModals();
           await inspect();
           diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
         } catch(err) {
           diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
           await delay(800);
+          await readModals();
           await inspect();
         }
       }
       await delay(1200);
+      await readModals();
       await inspect();
       diagnostics.push("Popup count: "+popupPages.length);
       screenshot = resolve(folder,id+".png");
