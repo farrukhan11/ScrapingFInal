@@ -40,7 +40,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
   try {
     const browser = await chromium.launch({headless:!options.headed});
     try {
-      context = await browser.newContext({locale:"en-US",viewport:{width:1365,height:900},acceptDownloads:false});
+      context = await browser.newContext({locale:"en-US",viewport:{width:1365,height:900},acceptDownloads:false,permissions:["clipboard-read","clipboard-write"]});
       page = await context.newPage();
       page.on("dialog",dialog=>{ diagnostics.push("Dialog: "+dialog.type()); void dialog.dismiss().catch(()=>{}); });
       context.on("page", popup => {
@@ -60,6 +60,26 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       if (await consent.count() && await consent.isVisible().catch(()=>false)) {
         await consent.click({timeout:2000}).catch(()=>{});
       }
+      const readClipboardCode = async () => {
+        for(const candidate of [page!, ...popupPages]) {
+          if(candidate.isClosed() || !sameCouponSite(candidate)) continue;
+          const copy = candidate.getByRole("button",{name:/^copy(?: code)?$/i}).first();
+          const copyAlt = candidate.locator('button,a,[role="button"]').filter({hasText:/^\s*copy(?: code)?\s*$/i}).first();
+          const target = await copy.count() ? copy : copyAlt;
+          if(!await target.count() || !await target.isVisible().catch(()=>false)) continue;
+          try {
+            await target.click({timeout:1800});
+            await delay(150);
+            const value = (await candidate.evaluate(()=>navigator.clipboard.readText()).catch(()=>"")).trim();
+            if(validCode(value)) {
+              add([{code:value,evidence:"coupon COPY clipboard",method:"html"}]);
+              diagnostics.push("Clipboard code on "+candidate.url()+": "+value);
+              return true;
+            }
+          } catch(error) { diagnostics.push("Clipboard read failed: "+String(error).slice(0,120)); }
+        }
+        return false;
+      };
       const readModals = async () => {
         for(const candidate of [page!, ...popupPages]) {
           if(candidate.isClosed() || !sameCouponSite(candidate)) continue;
@@ -129,17 +149,20 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         try {
           await target.click({timeout:4000,noWaitAfter:true});
           await delay(900);
+          await readClipboardCode();
           await readModals();
           await inspect();
           diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
         } catch(err) {
           diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
           await delay(800);
+          await readClipboardCode();
           await readModals();
           await inspect();
         }
       }
       await delay(1200);
+      await readClipboardCode();
       await readModals();
       await inspect();
       diagnostics.push("Popup count: "+popupPages.length);
