@@ -29,13 +29,19 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
   let finalUrl = result.url;
   let pageTitle = "";
   let screenshot: string | undefined;
+  const popupPages: Page[] = [];
   try {
     const browser = await chromium.launch({headless:!options.headed});
     try {
       context = await browser.newContext({locale:"en-US",viewport:{width:1365,height:900},acceptDownloads:false});
       page = await context.newPage();
       page.on("dialog",dialog=>{ diagnostics.push("Dialog: "+dialog.type()); void dialog.dismiss().catch(()=>{}); });
-      page.on("popup",popup=>{ diagnostics.push("Popup opened: "+popup.url()); void popup.close().catch(()=>{}); });
+      context.on("page", popup => {
+        if (popup === page) return;
+        popupPages.push(popup);
+        diagnostics.push("Popup opened (retained): "+popup.url());
+        popup.on("dialog",dialog=>void dialog.dismiss().catch(()=>{}));
+      });
       const response = await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:30000});
       httpStatus = response?.status();
       await page.waitForTimeout(1500);
@@ -47,12 +53,18 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         await consent.click({timeout:2000}).catch(()=>{});
       }
       const inspect = async () => {
-        const html = await page!.content();
-        add(parseCoupons(html).coupons);
-        // Only read explicit code-bearing DOM attributes, never guess from arbitrary text.
-        const values = await page!.locator("[data-code],[data-coupon-code],[data-promo-code]").evaluateAll(els=>els.flatMap(el=>["data-code","data-coupon-code","data-promo-code"].map(k=>el.getAttribute(k)).filter((v):v is string=>Boolean(v))));
-        for(const value of values) {
-          if (/^[a-z0-9][a-z0-9_-]{3,24}$/i.test(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
+        for (const candidate of [page!, ...popupPages]) {
+          if (candidate.isClosed()) continue;
+          try {
+            await candidate.waitForLoadState("domcontentloaded",{timeout:3500}).catch(()=>{});
+            const html = await candidate.content();
+            add(parseCoupons(html).coupons);
+            const values = await candidate.locator("[data-code],[data-coupon-code],[data-promo-code]").evaluateAll(els=>els.flatMap(el=>["data-code","data-coupon-code","data-promo-code"].map(k=>el.getAttribute(k)).filter((v):v is string=>Boolean(v))));
+            for(const value of values) {
+              if (/^[a-z0-9][a-z0-9_-]{3,24}$/i.test(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
+            }
+            diagnostics.push("Inspected "+candidate.url()+"; codes so far: "+codes.size);
+          } catch (error) { diagnostics.push("Inspect failed: "+String(error).slice(0,120)); }
         }
       };
       await inspect();
@@ -79,15 +91,22 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         clicked.add(key);
         attemptedClicks++;
         try {
-          await target.click({timeout:4000});
+          await target.click({timeout:4000,noWaitAfter:true});
           await delay(900);
           await inspect();
           diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
-        } catch(err) { diagnostics.push("Click "+attemptedClicks+" failed: "+String(err).slice(0,180)); }
+        } catch(err) {
+          diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
+          await delay(800);
+          await inspect();
+        }
       }
+      await delay(1200);
+      await inspect();
+      diagnostics.push("Popup count: "+popupPages.length);
       screenshot = resolve(folder,id+".png");
       await page.screenshot({path:screenshot,fullPage:false,timeout:8000}).catch(()=>{ screenshot=undefined; });
-      await writeFile(resolve(folder,id+".json"),JSON.stringify({url:result.url,finalUrl,pageTitle,httpStatus,revealButtons,attemptedClicks,diagnostics},null,2));
+      await writeFile(resolve(folder,id+".json"),JSON.stringify({url:result.url,finalUrl,pageTitle,httpStatus,revealButtons,attemptedClicks,popupUrls:popupPages.map(p=>p.url()),codes:[...codes.values()],diagnostics},null,2));
     } finally { await browser.close(); }
     const coupons=[...codes.values()];
     const restricted = httpStatus === 403 || httpStatus === 429;
