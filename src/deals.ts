@@ -45,7 +45,7 @@ export async function inspectDeals(config:BrandConfig,country:Region,headed=fals
     await page.waitForTimeout(1200);
 
     const homeText=await page.locator("body").innerText({timeout:3000}).catch(()=>"");
-    const newsletterHome=homeText.split(/\n+/).map(clean).find(s=>/(newsletter|sign up|email|sms|first order|new customer)/i.test(s)&&(/%\s*off|[$£€]\s*\d+\s*off|discount|save)/i.test(s)&&s.length<260);
+    const newsletterHome=homeText.split(/\n+/).map(clean).find(s => /(newsletter|sign up|email|sms|first order|new customer)/i.test(s) && /%\s*off|[$£€]\s*\d+\s*off|discount|save/i.test(s) && s.length < 260);
     if(newsletterHome){result.newsletter={found:true,sourceUrl:page.url(),dealText:clip(newsletterHome)};}
 
     const saleUrl=await firstLink(page,/^(sale|clearance|offers?|special offers?|deals?)$/i) ?? await firstLink(page,/sale|clearance/i);
