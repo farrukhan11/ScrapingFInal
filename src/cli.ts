@@ -12,11 +12,13 @@ function parseArgs(argv: string[]) {
   const requested = (get("--countries") ?? "US,UK,DE,FR").split(",").map(s => s.trim().toUpperCase());
   if (!brands.length) throw new Error("Provide --brand or --brands");
   if (requested.some(s => !regionNames.includes(s as Region))) throw new Error("Invalid country; use US,UK,DE,FR");
-  return { brands, countries: [...new Set(requested)] as Region[] };
+  const website = get("--website");
+  if (website && brands.length !== 1) throw new Error("--website supports one brand; use --brand");
+  return { brands, website, countries: [...new Set(requested)] as Region[] };
 }
 
 async function main() {
-  const { brands, countries } = parseArgs(process.argv.slice(2));
+  const { brands, countries, website } = parseArgs(process.argv.slice(2));
   const apiKey = process.env.SERPER_API_KEY ?? "";
   if (!apiKey) throw new Error("Set SERPER_API_KEY in .env");
   const results: SearchResult[] = [];
@@ -24,7 +26,7 @@ async function main() {
   for (const brand of brands) {
     for (const country of countries) {
       try {
-        const found = await searchBrand(brand, country, apiKey);
+        const found = await searchBrand(brand, country, apiKey, fetch, website);
         results.push(...found);
         console.log(`${brand} / ${country}: ${found.length} results`);
       } catch (error) {
