@@ -9,9 +9,20 @@ async function main() {
  const input=value("--input");
  if(!input) throw new Error("Usage: pnpm coupon-browser --input output/search-123.json [--headed] [--domain marieclaire.com]");
  const payload:unknown=JSON.parse(await readFile(resolve(input),"utf8"));
- if(!payload || typeof payload!=="object" || !("results" in payload) || !Array.isArray(payload.results)) throw new Error("Invalid search results JSON");
+ if(!payload || typeof payload!=="object") throw new Error("Invalid search results JSON");
  const domain=value("--domain")?.toLowerCase();
- const results=(payload.results as SearchResult[]).filter(r=>r.url && (!domain || new URL(r.url).hostname.toLowerCase().includes(domain)));
+ let results: SearchResult[]=[];
+ if("searches" in payload && Array.isArray((payload as any).searches)){
+   for(const search of (payload as any).searches){
+     if(!search?.brand || !search?.country || !Array.isArray(search.results)) continue;
+     search.results.forEach((r:any,index:number)=>{
+       if(r?.url) results.push({brand:String(search.brand),country:search.country,keyword:"",position:index+1,title:"",url:String(r.url),snippet:""});
+     });
+   }
+ } else if("results" in payload && Array.isArray((payload as any).results)){
+   results=(payload as any).results as SearchResult[];
+ } else throw new Error("Invalid search results JSON");
+ results=results.filter(r=>r.url && (!domain || new URL(r.url).hostname.toLowerCase().includes(domain)));
  if(!results.length) throw new Error("No matching URLs in input");
  const output=[];
  for(const result of results) {
