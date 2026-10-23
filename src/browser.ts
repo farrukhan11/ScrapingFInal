@@ -110,7 +110,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             for(const text of [visibleText,...dialogText]) {
               for(const match of text.matchAll(codeNearLabel)) {
                 const code=match[1];
-                if(validCode(code) && (/[0-9]/.test(code) || code.length >= 7))
+                if(validCode(code))
                   add([{code,evidence:"visible coupon label",method:"html"}]);
               }
             }
