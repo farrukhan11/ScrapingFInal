@@ -37,6 +37,10 @@ export function normalizeUrl(value: string): string | null {
 export function buildKeyword(brand: string, country: Region): string {
   return `${brand.trim()} ${regions[country].suffix}`;
 }
+export function isOfficialHost(hostname: string, domain: string): boolean {
+  const host = hostname.toLowerCase().replace(/^www\./, "");
+  return host === domain || host.endsWith(`.${domain}`);
+}
 export function normalizeOfficialDomain(input: string): string {
   const raw = input.trim();
   if (!raw) throw new Error('Website must not be empty');
@@ -82,7 +86,7 @@ export async function searchBrand(
     return [{
       brand, country, keyword, position: item.position ?? index + 1,
       title: item.title ?? "", url, snippet: item.snippet ?? "",
-      ...(officialDomain ? { officialDomain, isOfficialWebsite: new URL(url).hostname.toLowerCase().replace(/^www\./, "") === officialDomain } : {}),
+      ...(officialDomain ? { officialDomain, isOfficialWebsite: isOfficialHost(new URL(url).hostname, officialDomain) } : {}),
     }];
   });
 }
