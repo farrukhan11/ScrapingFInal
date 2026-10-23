@@ -1,0 +1,12 @@
+[
+  {
+    "brand": "Citizen Watch",
+    "website": "https://www.citizenwatch.com/us/en/",
+    "countries": ["US"]
+  },
+  {
+    "brand": "Nike",
+    "website": "https://www.nike.com/",
+    "countries": ["US","UK"]
+  }
+]
