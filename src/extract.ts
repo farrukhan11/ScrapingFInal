@@ -17,14 +17,14 @@ export function classify(result: SearchResult): Category {
   if (couponDomains.some(d => hostMatches(host,d)) || /coupon|promo code|discount code|gutscheincode|code promo/i.test(result.title)) return "coupon";
   return "other";
 }
-const codePattern = /^[A-Z0-9][A-Z0-9_-]{3,24}$/i;
+const codePattern = /^[A-Z0-9][A-Z0-9_%.-]{1,31}$/i;
 const stop = /^(SHOW|CODE|COUPON|DISCOUNT|WELCOME|PROMO|REVEAL|COPY|APPLY|SAVE|SHOP|OFFER|EXCLUSIVE|BUTTON|SUBMIT|GETCODE)$/i;
 export function parseCoupons(html: string): { coupons: Coupon[]; revealDetected: boolean } {
   const $ = load(html);
   const found = new Map<string,Coupon>();
   function add(raw: string | undefined, method: Coupon["method"], evidence: string) {
     const code = (raw ?? "").trim().replace(/^["']|["']$/g,"");
-    if (!codePattern.test(code) || stop.test(code) || !/[0-9]/.test(code) && code.length < 6) return;
+    if (!codePattern.test(code) || stop.test(code)) return;
     if (!found.has(code.toUpperCase())) found.set(code.toUpperCase(), { code, method, evidence });
   }
   $('[data-code], [data-coupon-code], [data-promo-code], [itemprop="discountCode"], .coupon-code, .promo-code').each((_,el) => {
@@ -46,6 +46,14 @@ export function parseCoupons(html: string): { coupons: Coupon[]; revealDetected:
       walk(JSON.parse(raw));
     } catch { /* malformed embedded JSON */ }
   });
+  const bodyText=$("body").text().replace(/\s+/g," ");
+  const textPatterns=[
+    /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
+    /(?:use|enter|apply)\s+(?:code\s+)?([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
+    /(?:rabattcode|gutscheincode)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
+    /code\s+promo\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi
+  ];
+  for(const re of textPatterns) for(const match of bodyText.matchAll(re)) add(match[1],"html","visible coupon text");
   const revealDetected = $('button,a,[role="button"]').toArray().some(el => /show code|reveal code|get code|unlock code|view code/i.test($(el).text() + " " + ($(el).attr("aria-label") ?? "")));
   return { coupons: [...found.values()], revealDetected };
 }
