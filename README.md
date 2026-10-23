@@ -62,3 +62,39 @@ pnpm coupon-browser --input "output/search-1792738476128.json" --domain mariecla
 ```
 
 To inspect all 10 URLs, omit `--domain`. `--headed` opens visible Chromium; omit it for headless mode. Results are saved to `output/browser-search-....json` and diagnostics/screenshot files under `output/browser-diagnostics/`. The browser attempts up to 12 visible reveal buttons per page, rescanning after each click. Codes are only accepted from explicit coupon DOM attributes or structured JSON; this is not checkout validation and may return zero even after a reveal. Some pages block automated access; no CAPTCHA or access-control bypass is included. Use on sites where access and automation are permitted.
+
+
+## Multi-brand batch input
+
+Copy `brands.example.json` to `brands.json` and define each brand with its official website and countries:
+
+```json
+[
+  {"brand":"Citizen Watch","website":"https://www.citizenwatch.com/us/en/","countries":["US"]},
+  {"brand":"Nike","website":"https://www.nike.com/","countries":["US","UK"]}
+]
+```
+
+Run coupon search for the entire batch:
+
+```powershell
+pnpm coupon-search --input brands.json
+```
+
+The generated search JSON carries the brand/country identity on every result, so `coupon-browser` can process multiple brands in one file without mixing outputs.
+
+## Official-site deal extraction
+
+The deal browser visits only each configured official brand website and attempts to find:
+
+- Sale/clearance page and current price/discount range
+- Free-shipping or free-delivery language from shipping/delivery pages
+- Newsletter, email, SMS, first-order or new-customer discount language
+
+Run:
+
+```powershell
+pnpm deal-browser --input brands.json --headed
+```
+
+Output is saved as `output/deals-<timestamp>.json`. Missing or unverified offers are reported rather than guessed. Deal extraction is heuristic because merchant layouts differ; site-specific adapters can be added for brands that need higher precision.
