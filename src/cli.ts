@@ -1,32 +1,43 @@
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { searchBrand, regionNames, type Region, type SearchResult } from "./search.js";
 
-function parseArgs(argv: string[]) {
+type BrandInput = { brand:string; website?:string; countries:Region[] };
+
+async function parseArgs(argv: string[]) {
   const get = (flag: string) => {
     const index = argv.indexOf(flag);
     return index >= 0 ? argv[index + 1] : undefined;
   };
+  const input = get("--input");
+  if (input) {
+    const raw: unknown = JSON.parse(await readFile(resolve(input),"utf8"));
+    if (!Array.isArray(raw)) throw new Error("--input must be a JSON array");
+    const brands: BrandInput[] = raw.map((item:any) => ({brand:String(item.brand??"").trim(),website:item.website?String(item.website):undefined,countries:(item.countries??["US"]).map((x:string)=>String(x).toUpperCase()) as Region[]}));
+    if (brands.some(b=>!b.brand || b.countries.some(c=>!regionNames.includes(c)))) throw new Error("Invalid brand config");
+    return { brandInputs: brands };
+  }
   const brands = (get("--brands") ?? get("--brand") ?? "").split(",").map(s => s.trim()).filter(Boolean);
   const requested = (get("--countries") ?? "US,UK,DE,FR").split(",").map(s => s.trim().toUpperCase());
   if (!brands.length) throw new Error("Provide --brand or --brands");
   if (requested.some(s => !regionNames.includes(s as Region))) throw new Error("Invalid country; use US,UK,DE,FR");
   const website = get("--website");
   if (website && brands.length !== 1) throw new Error("--website supports one brand; use --brand");
-  return { brands, website, countries: [...new Set(requested)] as Region[] };
+  return { brandInputs: brands.map(brand=>({brand,website,countries:[...new Set(requested)] as Region[]})) };
 }
 
 async function main() {
-  const { brands, countries, website } = parseArgs(process.argv.slice(2));
+  const { brandInputs } = await parseArgs(process.argv.slice(2));
   const apiKey = process.env.SERPER_API_KEY ?? "";
   if (!apiKey) throw new Error("Set SERPER_API_KEY in .env");
   const results: SearchResult[] = [];
   const failures: { brand: string; country: Region; error: string }[] = [];
-  for (const brand of brands) {
-    for (const country of countries) {
+  for (const item of brandInputs) {
+    for (const country of item.countries) {
+      const brand=item.brand;
       try {
-        const found = await searchBrand(brand, country, apiKey, fetch, website);
+        const found = await searchBrand(brand, country, apiKey, fetch, item.website);
         results.push(...found);
         console.log(`${brand} / ${country}: ${found.length} results`);
       } catch (error) {
