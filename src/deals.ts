@@ -15,6 +15,31 @@ const pctRe=/(\d{1,2})%\s*off/i;
 const clean=(s:string)=>s.replace(/\s+/g," ").trim();
 const money=(text:string)=>[...text.matchAll(priceRe)].map(m=>({currency:m[1],value:Number(m[2].replace(",",""))})).filter(x=>Number.isFinite(x.value));
 const clip=(s:string,n=220)=>clean(s).slice(0,n);
+const localeByCountry:Record<Region,string>={US:"en-US",UK:"en-GB",DE:"de-DE",FR:"fr-FR"};
+const saleLinkRe:Record<Region,RegExp>={
+  US:/sale|clearance|offers?|deals?/i,
+  UK:/sale|clearance|offers?|deals?/i,
+  DE:/sale|angebote|rabatt|reduziert|schlussverkauf/i,
+  FR:/soldes|promotions?|offres?|réduction/i
+};
+const shippingLinkRe:Record<Region,RegExp>={
+  US:/shipping|delivery/i,
+  UK:/shipping|delivery/i,
+  DE:/versand|lieferung/i,
+  FR:/livraison|expédition/i
+};
+const freeShippingRe:Record<Region,RegExp>={
+  US:/free\s+(standard\s+)?shipping|free\s+delivery/i,
+  UK:/free\s+(standard\s+)?shipping|free\s+delivery/i,
+  DE:/kostenlos(?:er|e)?\s+versand|versandkostenfrei|kostenlose\s+lieferung/i,
+  FR:/livraison\s+gratuite|expédition\s+gratuite/i
+};
+const signupRe:Record<Region,RegExp>={
+  US:/(newsletter|sign up|email|sms|first order|new customer)/i,
+  UK:/(newsletter|sign up|email|sms|first order|new customer)/i,
+  DE:/(newsletter|anmelden|e-?mail|sms|erste\s+bestellung|neukunde)/i,
+  FR:/(newsletter|inscri(?:vez|ption)|e-?mail|sms|première\s+commande|nouveau\s+client)/i
+};
 
 async function dismissCommon(page:Page){
   for(const name of [/accept all/i,/accept cookies/i,/agree/i,/allow all/i]){
@@ -36,7 +61,7 @@ async function bestSentence(page:Page,re:RegExp){
 export async function inspectDeals(config:BrandConfig,country:Region,headed=false):Promise<DealResult>{
   const diagnostics:string[]=[];
   const browser=await chromium.launch({headless:!headed});
-  const context=await browser.newContext({locale:country==="US"?"en-US":"en-GB",viewport:{width:1365,height:900}});
+  const context=await browser.newContext({locale:localeByCountry[country],viewport:{width:1365,height:900}});
   const page=await context.newPage();
   const result:DealResult={brand:config.brand,country,website:config.website,sale:{},shipping:{found:false},newsletter:{found:false},diagnostics};
   try{
@@ -45,10 +70,10 @@ export async function inspectDeals(config:BrandConfig,country:Region,headed=fals
     await page.waitForTimeout(1200);
 
     const homeText=await page.locator("body").innerText({timeout:3000}).catch(()=>"");
-    const newsletterHome=homeText.split(/\n+/).map(clean).find(s => /(newsletter|sign up|email|sms|first order|new customer)/i.test(s) && /%\s*off|[$£€]\s*\d+\s*off|discount|save/i.test(s) && s.length < 260);
+    const newsletterHome=homeText.split(/\n+/).map(clean).find(s => signupRe[country].test(s) && /%\s*(?:off|de|réduction)|[$£€]\s*\d+\s*(?:off|de réduction)|discount|save|rabatt|réduction|remise/i.test(s) && s.length < 260);
     if(newsletterHome){result.newsletter={found:true,sourceUrl:page.url(),dealText:clip(newsletterHome)};}
 
-    const saleUrl=await firstLink(page,/^(sale|clearance|offers?|special offers?|deals?)$/i) ?? await firstLink(page,/sale|clearance/i);
+    const saleUrl=await firstLink(page,saleLinkRe[country]);
     if(saleUrl){
       result.sale.pageUrl=saleUrl;
       await page.goto(saleUrl,{waitUntil:"domcontentloaded",timeout:20000}).catch(()=>{});
@@ -84,20 +109,20 @@ export async function inspectDeals(config:BrandConfig,country:Region,headed=fals
     } else diagnostics.push("Sale page not found");
 
     await page.goto(config.website,{waitUntil:"domcontentloaded",timeout:15000}).catch(()=>{});
-    const shippingUrl=await firstLink(page,/shipping|delivery/i);
+    const shippingUrl=await firstLink(page,shippingLinkRe[country]);
     if(shippingUrl){
       await page.goto(shippingUrl,{waitUntil:"domcontentloaded",timeout:15000}).catch(()=>{});
-      const sentence=await bestSentence(page,/free\s+(standard\s+)?shipping|free\s+delivery/i);
+      const sentence=await bestSentence(page,freeShippingRe[country]);
       if(sentence) result.shipping={found:true,sourceUrl:page.url(),dealText:clip(sentence)};
       else {result.shipping.sourceUrl=page.url();diagnostics.push("Shipping page found, free-shipping text not verified");}
     } else {
-      const sentence=await bestSentence(page,/free\s+(standard\s+)?shipping|free\s+delivery/i);
+      const sentence=await bestSentence(page,freeShippingRe[country]);
       if(sentence) result.shipping={found:true,sourceUrl:page.url(),dealText:clip(sentence)};
     }
 
     await page.goto(config.website,{waitUntil:"domcontentloaded",timeout:15000}).catch(()=>{});
     await page.waitForTimeout(1800);
-    const newsletter=await bestSentence(page,/(newsletter|sign up|email|sms|first order|new customer).*(%\s*off|discount|save)|(%\s*off|discount|save).*(newsletter|sign up|email|sms|first order|new customer)/i);
+    const newsletter=await bestSentence(page,new RegExp(`${signupRe[country].source}.*(%\\s*(?:off|de|réduction)|discount|save|rabatt|réduction|remise)|(%\\s*(?:off|de|réduction)|discount|save|rabatt|réduction|remise).*${signupRe[country].source}`,"i"));
     if(newsletter) result.newsletter={found:true,sourceUrl:page.url(),dealText:clip(newsletter)};
     if(!result.newsletter.found) diagnostics.push("Newsletter/new-customer discount not verified");
   } finally {await browser.close();}
