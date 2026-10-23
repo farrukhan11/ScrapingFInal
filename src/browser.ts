@@ -195,52 +195,68 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       revealButtons = await buttons.count();
       diagnostics.push("Initial reveal candidates: "+revealButtons);
       // Fallback for sites that do not expose reveal targets in markup.
-      // If direct targets yielded codes, skip the slower click/redirect loop entirely.
-      const clicked = new Set<string>();
+      // Re-query the DOM every iteration and track processed reveal IDs from popups.
+      const processedRevealIds = new Set<string>();
       const skipClickFallback = directRevealUrls.length > 0 && codes.size > 0;
-      let popupCountBefore = 0;
+      let scanIndex = 0;
       for(let step=0;!skipClickFallback && step<maxClicks;step++) {
         if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
           diagnostics.push("Unexpected master-tab navigation; restoring coupon list");
           await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:8000}).catch(()=>{});
           await delay(120);
         }
-        const count = await buttons.count();
-        let target: ReturnType<typeof buttons.nth> | undefined;
-        let key = "";
-        for(let i=0;i<Math.min(count,100);i++) {
-          const el = buttons.nth(i);
-          if (!await el.isVisible().catch(()=>false)) continue;
-          const signature = await el.evaluate((node)=> {
-            const rect = node.getBoundingClientRect();
-            const href=node.getAttribute("href") ?? "";
-            const parent=node.closest("[data-id],[data-offer-id],[data-coupon-id]");
-            const stableId=parent?.getAttribute("data-id") ?? parent?.getAttribute("data-offer-id") ?? parent?.getAttribute("data-coupon-id") ?? "";
-            return [stableId,href,node.textContent?.trim().slice(0,80),Math.round(rect.y/50)].join("|");
-          }).catch(()=>"");
-          if (!signature || clicked.has(signature)) continue;
-          target=el;key=signature;break;
+
+        // Fresh locator after every navigation/re-render.
+        const freshButtons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
+        const count = await freshButtons.count();
+        if (!count) break;
+
+        let target: ReturnType<typeof freshButtons.nth> | undefined;
+        let targetIndex = -1;
+        for(let offset=0; offset<count; offset++) {
+          const i=(scanIndex+offset)%count;
+          const el=freshButtons.nth(i);
+          if(!await el.isVisible().catch(()=>false)) continue;
+          target=el;targetIndex=i;break;
         }
-        if(!target) break;
-        clicked.add(key);
+        if(!target || targetIndex<0) break;
+        scanIndex=(targetIndex+1)%Math.max(count,1);
         attemptedClicks++;
+
+        const beforePages = new Set(context.pages());
         try {
-          popupCountBefore = popupPages.length;
           await target.scrollIntoViewIfNeeded().catch(()=>{});
-          await target.click({timeout:900,noWaitAfter:true,force:true});
-          await delay(120);
-          const latestPopup = popupPages.length > popupCountBefore ? popupPages[popupPages.length-1] : undefined;
-          const gotCode = await readClipboardCode(latestPopup);
+          const popupPromise = page.waitForEvent("popup",{timeout:1200}).catch(()=>undefined);
+          await target.dispatchEvent("click");
+          const popup = await popupPromise;
+          await delay(80);
+
+          const candidate = popup ?? context.pages().find(p=>!beforePages.has(p) && p!==page);
+          if(candidate) {
+            await candidate.waitForLoadState("domcontentloaded",{timeout:1200}).catch(()=>{});
+            const revealId = (()=>{try{return new URL(candidate.url()).searchParams.get("visibleMatchId") ?? new URL(candidate.url()).searchParams.get("seenMatchId") ?? candidate.url();}catch{return candidate.url();}})();
+            if(processedRevealIds.has(revealId)) {
+              diagnostics.push("Duplicate reveal skipped: "+revealId);
+              if(!candidate.isClosed()) await candidate.close().catch(()=>{});
+              continue;
+            }
+            processedRevealIds.add(revealId);
+            const gotCode = await readClipboardCode(candidate);
+            if(!gotCode) {
+              const modal=await readAndCloseModal(candidate);
+              if(modal.codes.length) add(modal.codes);
+            }
+            if(!candidate.isClosed()) await candidate.close().catch(()=>{});
+            diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
+            continue;
+          }
+
+          // Some sites reveal in-place without a popup.
+          const gotCode = await readClipboardCode(page);
           if(!gotCode) await readModals();
           diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
-          for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
         } catch(err) {
-          diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
-          await delay(80);
-          const latestPopup = popupPages.length ? popupPages[popupPages.length-1] : undefined;
-          const gotCode = await readClipboardCode(latestPopup);
-          if(!gotCode) await readModals();
-          for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
+          diagnostics.push("Click "+attemptedClicks+" skipped: "+String(err).slice(0,140));
         }
       }
       if(!skipClickFallback) {
