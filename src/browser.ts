@@ -19,7 +19,7 @@ export type BrowserExtraction = Extraction & { finalUrl?: string; pageTitle?: st
 export async function inspectBrowser(result: SearchResult, options: { headed?: boolean; artifactsDir?: string } = {}): Promise<BrowserExtraction> {
   const category = classify(result);
   const base: BrowserExtraction = {url:result.url,brand:result.brand,country:result.country,category,status:"no_code",requires_browser:false,coupons:[],diagnostics:[]};
-  if (category === "community" || category === "eligibility") return {...base,status:"skipped"};
+  if (category === "community") return {...base,status:"skipped"};
   const folder = resolve(options.artifactsDir ?? "output/browser-diagnostics");
   await mkdir(folder,{recursive:true});
   const id = safeFile(new URL(result.url).hostname + "-" + result.position);
