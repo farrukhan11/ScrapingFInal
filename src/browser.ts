@@ -7,6 +7,7 @@ import type { SearchResult } from "./search.js";
 const revealPattern = /(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i;
 const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
 const maxClicks = 12;
+const codeNearLabel = /(?:coupon|promo|discount|voucher)\s*code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_-]{3,24})/gi;
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 const safeFile = (name: string) => name.replace(/[^a-z0-9-]/gi, "_").slice(0, 90);
 export type BrowserExtraction = Extraction & { finalUrl?: string; pageTitle?: string; revealButtons?: number; attemptedClicks?: number; screenshot?: string; diagnostics?: string[] };
@@ -30,6 +31,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
   let pageTitle = "";
   let screenshot: string | undefined;
   const popupPages: Page[] = [];
+  const snapshots: Array<{url:string;visibleText:string;dialogText:string[]}> = [];
   try {
     const browser = await chromium.launch({headless:!options.headed});
     try {
@@ -59,6 +61,16 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
             await candidate.waitForLoadState("domcontentloaded",{timeout:3500}).catch(()=>{});
             const html = await candidate.content();
             add(parseCoupons(html).coupons);
+            const visibleText = await candidate.locator("body").innerText({timeout:3000}).catch(()=>"");
+            const dialogText = await candidate.locator('[role="dialog"],[aria-modal="true"]').allInnerTexts().catch(()=>[]);
+            snapshots.push({url:candidate.url(),visibleText:visibleText.slice(0,12000),dialogText:dialogText.map(t=>t.slice(0,4000))});
+            for(const text of [visibleText,...dialogText]) {
+              for(const match of text.matchAll(codeNearLabel)) {
+                const code=match[1];
+                if(!/^(?:SHOW|REVEAL|COPY|APPLY|COUPON|DISCOUNT|PROMO|BUTTON)$/i.test(code) && (/[0-9]/.test(code) || code.length>=6))
+                  add([{code,evidence:"visible coupon label",method:"html"}]);
+              }
+            }
             const values = await candidate.locator("[data-code],[data-coupon-code],[data-promo-code]").evaluateAll(els=>els.flatMap(el=>["data-code","data-coupon-code","data-promo-code"].map(k=>el.getAttribute(k)).filter((v):v is string=>Boolean(v))));
             for(const value of values) {
               if (/^[a-z0-9][a-z0-9_-]{3,24}$/i.test(value)) add([{code:value,evidence:"browser attribute",method:"html"}]);
@@ -74,6 +86,11 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       // Keep track of actual DOM nodes clicked; re-query after every interaction.
       const clicked = new Set<string>();
       for(let step=0;step<maxClicks;step++) {
+        if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
+          diagnostics.push("Merchant redirect detected; returning to coupon list");
+          await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:20000}).catch(()=>{});
+          await delay(800);
+        }
         const count = await buttons.count();
         let target: ReturnType<typeof buttons.nth> | undefined;
         let key = "";
@@ -106,7 +123,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       diagnostics.push("Popup count: "+popupPages.length);
       screenshot = resolve(folder,id+".png");
       await page.screenshot({path:screenshot,fullPage:false,timeout:8000}).catch(()=>{ screenshot=undefined; });
-      await writeFile(resolve(folder,id+".json"),JSON.stringify({url:result.url,finalUrl,pageTitle,httpStatus,revealButtons,attemptedClicks,popupUrls:popupPages.map(p=>p.url()),codes:[...codes.values()],diagnostics},null,2));
+      await writeFile(resolve(folder,id+".json"),JSON.stringify({url:result.url,finalUrl,pageTitle,httpStatus,revealButtons,attemptedClicks,popupUrls:popupPages.map(p=>p.url()),codes:[...codes.values()],snapshots:snapshots.slice(-30),diagnostics},null,2));
     } finally { await browser.close(); }
     const coupons=[...codes.values()];
     const restricted = httpStatus === 403 || httpStatus === 429;
