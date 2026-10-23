@@ -7,7 +7,8 @@ import { readAndCloseModal } from "./modal.js";
 
 const revealPattern = /(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i;
 const consentPattern = /^(?:accept all|accept cookies|agree|allow all)$/i;
-const maxClicks = 12;
+const maxClicks = 30;
+const maxCodesPerSite = 10;
 const codeNearLabel = /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]\s*([A-Z0-9][A-Z0-9_-]{3,24})/gi;
 const rejectedTokens = /^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping)$/i;
 const validCode = (code: string) => /^[a-z0-9][a-z0-9_-]{3,24}$/i.test(code) && !rejectedTokens.test(code) && (/[0-9]/.test(code) || /[A-Z]/.test(code.slice(1)));
@@ -123,16 +124,17 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       };
       await inspect();
       const directRevealUrls: string[] = [];
-      const buttons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
+      const activeRevealButtons = () => page.locator('button,a,[role="button"]').filter({hasText:revealPattern}).filter({hasNot: page.locator('text=/offer expired|expired/i')});
+      const buttons = activeRevealButtons();
       revealButtons = await buttons.count();
-      diagnostics.push("Initial reveal candidates: "+revealButtons);
+      diagnostics.push("Initial active reveal candidates: "+revealButtons+"; max codes: "+maxCodesPerSite);
       // Stable fallback: process reveal buttons sequentially.
       // The popup wait is registered before click, matching Playwright's recommended pattern.
       const processedRevealIds = new Set<string>();
       let scanIndex = 0;
       const maxAttempts = Math.min(Math.max(revealButtons, 12), 30);
 
-      for(let attempt=0; attempt<maxAttempts; attempt++) {
+      for(let attempt=0; attempt<maxAttempts && codes.size < maxCodesPerSite; attempt++) {
         // Restore coupon list only when the opener actually navigated away.
         if (new URL(page.url()).hostname.replace(/^www\./,"") !== siteHost) {
           const back = await page.goBack({waitUntil:"domcontentloaded",timeout:3000}).catch(()=>null);
@@ -142,7 +144,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           await delay(100);
         }
 
-        const freshButtons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
+        const freshButtons = activeRevealButtons();
         const count = await freshButtons.count();
         if(!count) break;
 
@@ -150,6 +152,18 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         scanIndex++;
         const target = freshButtons.nth(index);
         if(!await target.isVisible().catch(()=>false)) continue;
+        const expired = await target.evaluate(node => {
+          let el: Element | null = node;
+          for(let i=0;i<5 && el;i++,el=el.parentElement) {
+            const text=(el.textContent??"").replace(/\s+/g," ").toLowerCase();
+            if(/offer expired|expired/.test(text)) return true;
+          }
+          return false;
+        }).catch(()=>false);
+        if(expired) {
+          diagnostics.push("Expired offer skipped at index "+index);
+          continue;
+        }
 
         attemptedClicks++;
         try {
@@ -170,7 +184,11 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           const revealId = (() => {
             try {
               const u = new URL(popup.url());
-              return u.searchParams.get("visibleMatchId") ?? u.searchParams.get("seenMatchId") ?? u.toString();
+              return u.searchParams.get("visibleMatchId")
+                ?? u.searchParams.get("seenMatchId")
+                ?? u.searchParams.get("u")
+                ?? (u.origin + u.pathname + u.hash)
+                ?? u.toString();
             } catch { return popup.url(); }
           })();
 
@@ -208,7 +226,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       await page.screenshot({path:screenshot,fullPage:false,timeout:8000}).catch(()=>{ screenshot=undefined; });
       await writeFile(resolve(folder,id+".json"),JSON.stringify({url:result.url,finalUrl,pageTitle,httpStatus,revealButtons,attemptedClicks,popupUrls:popupPages.map(p=>p.url()),codes:[...codes.values()],snapshots:snapshots.slice(-30),diagnostics},null,2));
     } finally { await browser.close(); }
-    const coupons=[...codes.values()];
+    const coupons=[...codes.values()].slice(0,maxCodesPerSite);
     const restricted = httpStatus === 403 || httpStatus === 429;
     return {...base,httpStatus,finalUrl,pageTitle,revealButtons,attemptedClicks,screenshot,diagnostics,coupons,requires_browser:!coupons.length && revealButtons>0,status:coupons.length?"extracted":restricted?"blocked":revealButtons>0?"needs_browser":"no_code"};
   } catch(err) {
