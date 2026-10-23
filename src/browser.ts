@@ -121,13 +121,68 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         }
       };
       await inspect();
+      // Fast path: many coupon sites expose a stable reveal URL/offer id in the DOM.
+      // Process unique reveal targets directly to avoid affiliate redirects and duplicate clicks.
+      const directRevealUrls = await page.evaluate((baseUrl) => {
+        const base = new URL(baseUrl);
+        const out = new Set<string>();
+        const els = Array.from(document.querySelectorAll('a,button,[role="button"],[data-match-id],[data-offer-id],[data-id]'));
+        for (const el of els) {
+          const text = (el.textContent ?? "") + " " + (el.getAttribute("aria-label") ?? "");
+          const attrs = Array.from(el.attributes).map(a => [a.name,a.value] as const);
+          const href = el.getAttribute("href");
+          if (href) {
+            try {
+              const u = new URL(href, base);
+              if (u.hostname === base.hostname && (u.searchParams.has("visibleMatchId") || u.searchParams.has("seenMatchId"))) out.add(u.toString());
+            } catch {}
+          }
+          if (!/(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i.test(text)) continue;
+          for (const [name,value] of attrs) {
+            if (!/match.?id|offer.?id|coupon.?id/i.test(name) || !/^\d{5,}$/.test(value)) continue;
+            const u = new URL(base);
+            u.searchParams.set("seenMatchId",value);
+            u.searchParams.set("visibleMatchId",value);
+            out.add(u.toString());
+          }
+        }
+        return [...out];
+      }, result.url).catch(()=>[] as string[]);
+      if (directRevealUrls.length) {
+        diagnostics.push("Direct reveal targets: "+directRevealUrls.length);
+        const seenTargets = new Set<string>();
+        for (const revealUrl of directRevealUrls.slice(0,50)) {
+          const id = new URL(revealUrl).searchParams.get("visibleMatchId") ?? revealUrl;
+          if (seenTargets.has(id)) continue;
+          seenTargets.add(id);
+          attemptedClicks++;
+          const worker = await context.newPage();
+          try {
+            await worker.goto(revealUrl,{waitUntil:"domcontentloaded",timeout:8000});
+            const got = await readClipboardCode(worker);
+            if (!got) {
+              const modal = await readAndCloseModal(worker);
+              if (modal.codes.length) add(modal.codes);
+              diagnostics.push("Direct target "+id+": "+(modal.codes.map(c=>c.code).join(",") || "no code"));
+            } else {
+              diagnostics.push("Direct target "+id+": clipboard code captured");
+            }
+          } catch (error) {
+            diagnostics.push("Direct target "+id+" failed: "+String(error).slice(0,120));
+          } finally {
+            if (!worker.isClosed()) await worker.close().catch(()=>{});
+          }
+        }
+      }
       const buttons = page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
       revealButtons = await buttons.count();
       diagnostics.push("Initial reveal candidates: "+revealButtons);
-      // Keep track of actual DOM nodes clicked; re-query after every interaction.
+      // Fallback for sites that do not expose reveal targets in markup.
+      // If direct targets yielded codes, skip the slower click/redirect loop entirely.
       const clicked = new Set<string>();
+      const skipClickFallback = directRevealUrls.length > 0 && codes.size > 0;
       let popupCountBefore = 0;
-      for(let step=0;step<maxClicks;step++) {
+      for(let step=0;!skipClickFallback && step<maxClicks;step++) {
         if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
           diagnostics.push("Merchant redirect detected; returning to coupon list");
           await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:20000}).catch(()=>{});
@@ -170,9 +225,11 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
           for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
         }
       }
-      await delay(150);
-      await readClipboardCode();
-      await readModals();
+      if(!skipClickFallback) {
+        await delay(80);
+        await readClipboardCode();
+        await readModals();
+      }
       diagnostics.push("Popup count: "+popupPages.length);
       screenshot = resolve(folder,id+".png");
       await page.screenshot({path:screenshot,fullPage:false,timeout:8000}).catch(()=>{ screenshot=undefined; });
