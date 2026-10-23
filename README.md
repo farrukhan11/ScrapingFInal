@@ -51,3 +51,14 @@ Use the actual filename from the first command. Results are saved to `output/ext
 The extractor classifies sources, fetches public HTML, parses explicit coupon attributes and JSON state, and marks reveal-button pages as `needs_browser`. It does **not** click reveal buttons or verify codes at checkout. `blocked` and `error` are recorded separately. Respect website access policies and rate limits. HTML-only extraction may miss JavaScript-rendered codes.
 
 Run `pnpm typecheck` and `pnpm test` after `pnpm install`.
+
+## Phase 3: Browser diagnostics and reveal clicks (experimental)
+
+```powershell
+git pull origin main
+pnpm install
+pnpm exec playwright install chromium
+pnpm coupon-browser --input "output/search-1792738476128.json" --domain marieclaire.com --headed
+```
+
+To inspect all 10 URLs, omit `--domain`. `--headed` opens visible Chromium; omit it for headless mode. Results are saved to `output/browser-search-....json` and diagnostics/screenshot files under `output/browser-diagnostics/`. The browser attempts up to 12 visible reveal buttons per page, rescanning after each click. Codes are only accepted from explicit coupon DOM attributes or structured JSON; this is not checkout validation and may return zero even after a reveal. Some pages block automated access; no CAPTCHA or access-control bypass is included. Use on sites where access and automation are permitted.
