@@ -46,7 +46,7 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       context.on("page", popup => {
         if (popup === page) return;
         popupPages.push(popup);
-        diagnostics.push("Popup opened (retained): "+popup.url());
+        diagnostics.push("Popup opened: "+popup.url());
         popup.on("domcontentloaded",()=>{ if(!sameCouponSite(popup)) { diagnostics.push("Affiliate tab: "+popup.url()); void popup.close().catch(()=>{}); } });
         popup.on("dialog",dialog=>void dialog.dismiss().catch(()=>{}));
       });
@@ -60,23 +60,28 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       if (await consent.count() && await consent.isVisible().catch(()=>false)) {
         await consent.click({timeout:2000}).catch(()=>{});
       }
-      const readClipboardCode = async () => {
-        for(const candidate of [page!, ...popupPages]) {
+      const readClipboardCode = async (preferred?: Page) => {
+        const candidates = preferred
+          ? [preferred]
+          : [page!, ...popupPages].filter(p => !p.isClosed() && sameCouponSite(p)).slice(-1);
+        for(const candidate of candidates) {
           if(candidate.isClosed() || !sameCouponSite(candidate)) continue;
-          const copy = candidate.getByRole("button",{name:/^copy(?: code)?$/i}).first();
-          const copyAlt = candidate.locator('button,a,[role="button"]').filter({hasText:/^\s*copy(?: code)?\s*$/i}).first();
-          const target = await copy.count() ? copy : copyAlt;
-          if(!await target.count() || !await target.isVisible().catch(()=>false)) continue;
           try {
-            await target.click({timeout:1800});
-            await delay(150);
-            const value = (await candidate.evaluate(()=>navigator.clipboard.readText()).catch(()=>"")).trim();
+            await candidate.waitForLoadState("domcontentloaded",{timeout:1200}).catch(()=>{});
+            const copy = candidate.locator('button,a,[role="button"]').filter({hasText:/^\s*copy(?: code)?\s*$/i}).first();
+            if(!await copy.count() || !await copy.isVisible().catch(()=>false)) continue;
+            await copy.click({timeout:700,noWaitAfter:true});
+            await delay(60);
+            const value=(await candidate.evaluate(()=>navigator.clipboard.readText()).catch(()=>"")).trim();
             if(validCode(value)) {
               add([{code:value,evidence:"coupon COPY clipboard",method:"html"}]);
               diagnostics.push("Clipboard code on "+candidate.url()+": "+value);
+              if(candidate !== page && !candidate.isClosed()) await candidate.close().catch(()=>{});
               return true;
             }
-          } catch(error) { diagnostics.push("Clipboard read failed: "+String(error).slice(0,120)); }
+          } catch(error) {
+            diagnostics.push("Clipboard read skipped: "+String(error).slice(0,100));
+          }
         }
         return false;
       };
@@ -121,11 +126,12 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
       diagnostics.push("Initial reveal candidates: "+revealButtons);
       // Keep track of actual DOM nodes clicked; re-query after every interaction.
       const clicked = new Set<string>();
+      let popupCountBefore = 0;
       for(let step=0;step<maxClicks;step++) {
         if (new URL(page.url()).hostname !== new URL(result.url).hostname) {
           diagnostics.push("Merchant redirect detected; returning to coupon list");
           await page.goto(result.url,{waitUntil:"domcontentloaded",timeout:20000}).catch(()=>{});
-          await delay(800);
+          await delay(250);
         }
         const count = await buttons.count();
         let target: ReturnType<typeof buttons.nth> | undefined;
@@ -147,24 +153,26 @@ export async function inspectBrowser(result: SearchResult, options: { headed?: b
         clicked.add(key);
         attemptedClicks++;
         try {
-          await target.click({timeout:4000,noWaitAfter:true});
-          await delay(900);
-          await readClipboardCode();
-          await readModals();
-          await inspect();
+          popupCountBefore = popupPages.length;
+          await target.click({timeout:1800,noWaitAfter:true});
+          await delay(250);
+          const latestPopup = popupPages.length > popupCountBefore ? popupPages[popupPages.length-1] : undefined;
+          const gotCode = await readClipboardCode(latestPopup);
+          if(!gotCode) await readModals();
           diagnostics.push("Click "+attemptedClicks+": "+codes.size+" codes");
+          for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
         } catch(err) {
           diagnostics.push("Click "+attemptedClicks+" interrupted: "+String(err).slice(0,180));
-          await delay(800);
-          await readClipboardCode();
-          await readModals();
-          await inspect();
+          await delay(180);
+          const latestPopup = popupPages.length ? popupPages[popupPages.length-1] : undefined;
+          const gotCode = await readClipboardCode(latestPopup);
+          if(!gotCode) await readModals();
+          for(let i=popupPages.length-1;i>=0;i--) if(popupPages[i].isClosed()) popupPages.splice(i,1);
         }
       }
-      await delay(1200);
+      await delay(150);
       await readClipboardCode();
       await readModals();
-      await inspect();
       diagnostics.push("Popup count: "+popupPages.length);
       screenshot = resolve(folder,id+".png");
       await page.screenshot({path:screenshot,fullPage:false,timeout:8000}).catch(()=>{ screenshot=undefined; });
