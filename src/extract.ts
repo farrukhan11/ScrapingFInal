@@ -18,7 +18,7 @@ export function classify(result: SearchResult): Category {
   return "other";
 }
 const codePattern = /^[A-Z0-9][A-Z0-9_%.-]{1,31}$/i;
-const stop = /^(SHOW|CODE|COUPON|DISCOUNT|WELCOME|PROMO|REVEAL|COPY|APPLY|SAVE|SHOP|OFFER|EXCLUSIVE|BUTTON|SUBMIT|GETCODE)$/i;
+const stop = /^(SHOW|CODE|COUPON|DISCOUNT|PROMO|REVEAL|COPY|APPLY|SAVE|SHOP|OFFER|EXCLUSIVE|BUTTON|SUBMIT|GETCODE|SALE|PRINTABLE|REQUIRED|STRICT|INTO|PER|AT|TO|FOR|FROM|WITH|IN|OF|ON|OR|AND|WE|SEE|GET|VISIT|FULL|LESS|QUANTITY|DEFAULT|FAILED|LAST|FIRST|PRIVACY|COOKIES|CANCELCONSENT|PRODUCT|CUSTOMER|NEWSLETTER|UPDATED|VERIFIED|AVAILABLE|OFFERING|WANT|RIGHT|WORKED|ONE|IS|VAR|FIND|MUST|THEM|ALL|UP|CHECK|PAGE|CURRENTLY|SAVES|RELEASES|DEVICE|HREF|CONTACT|OTHER)$/i;
 export function parseCoupons(html: string): { coupons: Coupon[]; revealDetected: boolean } {
   const $ = load(html);
   const found = new Map<string,Coupon>();
@@ -49,7 +49,7 @@ export function parseCoupons(html: string): { coupons: Coupon[]; revealDetected:
   const bodyText=$("body").text().replace(/\s+/g," ");
   const textPatterns=[
     /(?:coupon|promo|discount|voucher)\s+code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
-    /(?:use|enter|apply)\s+(?:code\s+)?([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
+    /(?:use|enter|apply)\s+(?:promo\s+|coupon\s+|discount\s+)?code\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})\b/gi,
     /(?:rabattcode|gutscheincode)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
     /code\s+promo\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi
   ];
