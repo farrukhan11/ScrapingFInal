@@ -15,7 +15,7 @@ const pctRe=/(\d{1,2})%\s*off/i;
 const clean=(s:string)=>s.replace(/\s+/g," ").trim();
 const money=(text:string)=>[...text.matchAll(priceRe)].map(m=>({currency:m[1],value:Number(m[2].replace(",",""))})).filter(x=>Number.isFinite(x.value));
 const clip=(s:string,n=220)=>clean(s).slice(0,n);
-const localeByCountry:Record<Region,string>={US:"en-US",UK:"en-GB",DE:"de-DE",FR:"fr-FR"};
+const localeByCountry:Record<Region,string>={US:"en-US",CA:"en-CA",UK:"en-GB",DE:"de-DE",FR:"fr-FR"};
 const saleLinkRe:Record<Region,RegExp>={
   US:/sale|clearance|offers?|deals?/i,
   UK:/sale|clearance|offers?|deals?/i,
@@ -24,6 +24,7 @@ const saleLinkRe:Record<Region,RegExp>={
 };
 const shippingLinkRe:Record<Region,RegExp>={
   US:/shipping|delivery/i,
+  CA:/shipping|delivery/i,
   UK:/shipping|delivery/i,
   DE:/versand|lieferung/i,
   FR:/livraison|expédition/i
