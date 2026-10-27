@@ -1,72 +1,79 @@
 [
   {
-    "brand": "Revomadic",
-    "website": "https://revomadic.com/",
+    "brand": "Dansko",
+    "website": "https://dansko.com/",
     "countries": [
       "US"
     ]
   },
   {
-    "brand": "Doulton",
-    "website": "https://doulton.com/",
-    "countries": [
-      "UK"
-    ]
-  },
-  {
-    "brand": "Boogie Bounce",
-    "website": "https://www.boogiebounce.com/",
-    "countries": [
-      "UK"
-    ]
-  },
-  {
-    "brand": "Rexing",
-    "website": "https://rexing.com/",
+    "brand": "Jura",
+    "website": "https://shopjura.com/",
     "countries": [
       "US"
     ]
   },
   {
-    "brand": "XGIMI",
-    "website": "https://us.xgimi.com/",
+    "brand": "Tiremart.com",
+    "website": "https://tiremart.com/",
     "countries": [
       "US"
     ]
   },
   {
-    "brand": "My EarFun",
-    "website": "https://www.myearfun.com/uk",
-    "countries": [
-      "UK"
-    ]
-  },
-  {
-    "brand": "PGYTECH",
-    "website": "https://www.pgytech.com/",
+    "brand": "Michael Stars",
+    "website": "https://michaelstars.com/",
     "countries": [
       "US"
     ]
   },
   {
-    "brand": "Sunshine Tienda",
-    "website": "https://www.sunshinetienda.com/",
+    "brand": "Beautyrest",
+    "website": "https://beautyrest.com/",
     "countries": [
       "US"
     ]
   },
   {
-    "brand": "Theatre Tickets Direct",
-    "website": "https://www.theatreticketsdirect.co.uk/",
+    "brand": "Giraffe Tools",
+    "website": "https://giraffetools.com/",
     "countries": [
-      "UK"
+      "US"
     ]
   },
   {
-    "brand": "Mama Kana",
-    "website": "https://mamakana.com/",
+    "brand": "YOOX",
+    "website": "https://yoox.com/",
     "countries": [
-      "FR"
+      "US"
+    ]
+  },
+  {
+    "brand": "NYDJ",
+    "website": "https://nydj.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "Step2",
+    "website": "https://step2.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "Beaufort Bonnet",
+    "website": "https://thebeaufortbonnetcompany.com/",
+    "countries": [
+      "US"
+    ]
+  },
+  {
+    "brand": "One Kings Lane",
+    "website": "https://onekingslane.com/",
+    "countries": [
+      "US"
     ]
   }
 ]
