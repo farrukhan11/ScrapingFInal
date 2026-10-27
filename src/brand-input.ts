@@ -9,6 +9,10 @@ export type BrandBatchItem = {
 };
 
 const countrySet = new Set<string>(regionNames);
+const normalizeCountry = (value:string):Region => {
+  const code=value.trim().toUpperCase();
+  return (code === "GB" ? "UK" : code) as Region;
+};
 
 export function deriveBrand(website:string):string {
   const raw=/^https?:\/\//i.test(website)?website:`https://${website}`;
@@ -34,8 +38,8 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
     return raw.map((item:any)=>{
       const website=normalizeWebsite(String(item.website??item.url??""));
       const countriesRaw=item.countries ?? (item.country ? [item.country] : ["US"]);
-      const countries=countriesRaw.map((x:any)=>String(x).trim().toUpperCase()) as Region[];
-      if(!countries.length || countries.some(c=>!countrySet.has(c))) throw new Error("Invalid country; use US, UK, DE or FR");
+      const countries=countriesRaw.map((x:any)=>normalizeCountry(String(x)));
+      if(!countries.length || countries.some(c=>!countrySet.has(c))) throw new Error("Invalid country; use US, CA, UK/GB, DE or FR");
       return {brand:String(item.brand??deriveBrand(website)).trim(),website,countries};
     });
   }
@@ -54,7 +58,7 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
     const markdownUrl=rawWebsiteCell.match(/\]\((https?:\/\/[^\s")]+)[^)]*\)/i)?.[1];
     const plain=rawWebsiteCell.replace(/\[[^\]]+\]\([^)]*\)/g,"").trim();
     const website=normalizeWebsite(markdownUrl ?? plain.replace(/^\[|\]$/g,"").split(/\s+/)[0]);
-    const country=String(cells[cells.length-1]).toUpperCase() as Region;
+    const country=normalizeCountry(String(cells[cells.length-1]));
     if(!countrySet.has(country)) continue;
     out.push({brand:deriveBrand(website),website,countries:[country]});
   }
