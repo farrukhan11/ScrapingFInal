@@ -1,0 +1,76 @@
+{
+  "name": "Coupon Search - Serper Batch",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "8d27aa31-c4a9-4f47-899a-08f333113a11",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "cd /var/www/ScrapingFInal && pnpm coupon-search --input brands-batch.json >/tmp/coupon-search.log 2>&1 && FILE=$(ls -t output/search-*.json | head -1) && cat \"$FILE\""
+      },
+      "id": "d8ebfcf1-2f2c-47c2-bbc0-312ebdfc9a12",
+      "name": "Run Serper Batch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.stdout?.trim();\nif (!raw) throw new Error('Serper command returned no JSON output');\nconst data = JSON.parse(raw);\nconst failures = data.failures ?? [];\nreturn (data.searches ?? []).map((search) => ({\n  json: {\n    generatedAt: data.generatedAt,\n    brand: search.brand,\n    country: search.country,\n    results: search.results,\n    resultCount: search.results?.length ?? 0,\n    failures: failures.filter((f) => f.brand === search.brand && f.country === search.country)\n  }\n}));"
+      },
+      "id": "f9db8c4d-63bb-46e9-9cc0-bb9fb947803a",
+      "name": "Parse Search JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Run Serper Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Serper Batch": {
+      "main": [
+        [
+          {
+            "node": "Parse Search JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "9fe4dc8a-ecc6-43f0-bbe5-2ca7adc9c44a",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
