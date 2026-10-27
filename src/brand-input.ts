@@ -39,7 +39,7 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
       const website=normalizeWebsite(String(item.website??item.url??""));
       const countriesRaw=item.countries ?? (item.country ? [item.country] : ["US"]);
       const countries=countriesRaw.map((x:any)=>normalizeCountry(String(x)));
-      if(!countries.length || countries.some(c=>!countrySet.has(c))) throw new Error("Invalid country; use US, CA, UK/GB, DE or FR");
+      if(!countries.length || countries.some((c:Region)=>!countrySet.has(c))) throw new Error("Invalid country; use US, CA, UK/GB, DE or FR");
       return {brand:String(item.brand??deriveBrand(website)).trim(),website,countries};
     });
   }
