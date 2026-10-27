@@ -15,10 +15,11 @@ async function parseArgs(argv: string[]) {
   const brands = (get("--brands") ?? get("--brand") ?? "").split(",").map(s => s.trim()).filter(Boolean);
   const requested = (get("--countries") ?? "US,UK,DE,FR").split(",").map(s => s.trim().toUpperCase());
   if (!brands.length) throw new Error("Provide --brand, --brands or --input");
-  if (requested.some(s => !regionNames.includes(s as Region))) throw new Error("Invalid country; use US,UK,DE,FR");
+  const normalizedRequested=requested.map(s=>s==="GB"?"UK":s);
+  if (normalizedRequested.some(s => !regionNames.includes(s as Region))) throw new Error("Invalid country; use US,CA,UK/GB,DE,FR");
   const website = get("--website");
   if (website && brands.length !== 1) throw new Error("--website supports one brand; use --brand");
-  return { brandInputs: brands.map(brand=>({brand,website:website ?? `https://${brand.toLowerCase().replace(/\s+/g,"")}.com/`,countries:[...new Set(requested)] as Region[]})) };
+  return { brandInputs: brands.map(brand=>({brand,website:website ?? `https://${brand.toLowerCase().replace(/\s+/g,"")}.com/`,countries:[...new Set(normalizedRequested)] as Region[]})) };
 }
 
 async function main() {
