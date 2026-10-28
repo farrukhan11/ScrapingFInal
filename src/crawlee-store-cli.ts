@@ -150,7 +150,7 @@ async function main(){
 
   await crawler.run(urls);
 
-  const order=new Map(urls.map((u:string,i:number)=>[u,i]));
+  const order = new Map<string, number>(urls.map((u:string,i:number)=>[u,i] as [string, number]));
   records.sort((a,b)=>(order.get(a.url)??999)-(order.get(b.url)??999));
 
   const uniqueCodes=[...new Set(records.flatMap(r=>r.codes))];
