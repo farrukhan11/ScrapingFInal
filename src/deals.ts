@@ -15,10 +15,11 @@ const pctRe=/(\d{1,2})%\s*off/i;
 const clean=(s:string)=>s.replace(/\s+/g," ").trim();
 const money=(text:string)=>[...text.matchAll(priceRe)].map(m=>({currency:m[1],value:Number(m[2].replace(",",""))})).filter(x=>Number.isFinite(x.value));
 const clip=(s:string,n=220)=>clean(s).slice(0,n);
-const localeByCountry:Record<Region,string>={US:"en-US",CA:"en-CA",UK:"en-GB",DE:"de-DE",FR:"fr-FR"};
+const localeByCountry:Record<Region,string>={US:"en-US",CA:"en-CA",AU:"en-AU",UK:"en-GB",DE:"de-DE",FR:"fr-FR"};
 const saleLinkRe:Record<Region,RegExp>={
   US:/sale|clearance|offers?|deals?/i,
   CA:/sale|clearance|offers?|deals?/i,
+  AU:/sale|clearance|offers?|deals?/i,
   UK:/sale|clearance|offers?|deals?/i,
   DE:/sale|angebote|rabatt|reduziert|schlussverkauf/i,
   FR:/soldes|promotions?|offres?|réduction/i
@@ -26,6 +27,7 @@ const saleLinkRe:Record<Region,RegExp>={
 const shippingLinkRe:Record<Region,RegExp>={
   US:/shipping|delivery/i,
   CA:/shipping|delivery/i,
+  AU:/shipping|delivery/i,
   UK:/shipping|delivery/i,
   DE:/versand|lieferung/i,
   FR:/livraison|expédition/i
@@ -33,6 +35,7 @@ const shippingLinkRe:Record<Region,RegExp>={
 const freeShippingRe:Record<Region,RegExp>={
   US:/free\s+(standard\s+)?shipping|free\s+delivery/i,
   CA:/free\s+(standard\s+)?shipping|free\s+delivery/i,
+  AU:/free\s+(standard\s+)?shipping|free\s+delivery/i,
   UK:/free\s+(standard\s+)?shipping|free\s+delivery/i,
   DE:/kostenlos(?:er|e)?\s+versand|versandkostenfrei|kostenlose\s+lieferung/i,
   FR:/livraison\s+gratuite|expédition\s+gratuite/i
@@ -40,6 +43,7 @@ const freeShippingRe:Record<Region,RegExp>={
 const signupRe:Record<Region,RegExp>={
   US:/(newsletter|sign up|email|sms|first order|new customer)/i,
   CA:/(newsletter|sign up|email|sms|first order|new customer)/i,
+  AU:/(newsletter|sign up|email|sms|first order|new customer)/i,
   UK:/(newsletter|sign up|email|sms|first order|new customer)/i,
   DE:/(newsletter|anmelden|e-?mail|sms|erste\s+bestellung|neukunde)/i,
   FR:/(newsletter|inscri(?:vez|ption)|e-?mail|sms|première\s+commande|nouveau\s+client)/i
