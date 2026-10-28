@@ -10,13 +10,15 @@
     "coupon-extract": "tsx src/extract-cli.ts",
     "coupon-browser": "tsx src/browser-cli.ts",
     "deal-browser": "tsx src/deal-cli.ts",
-    "full-run": "tsx src/pipeline-cli.ts"
+    "full-run": "tsx src/pipeline-cli.ts",
+    "coupon-crawlee-store": "tsx src/crawlee-store-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "zod": "^3.24.2",
     "cheerio": "^1.0.0",
-    "playwright": "^1.56.1"
+    "playwright": "^1.56.1",
+    "crawlee": "^3.15.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
