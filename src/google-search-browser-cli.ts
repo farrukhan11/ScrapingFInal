@@ -8,6 +8,7 @@ import { buildKeyword, normalizeUrl, regions, type Region } from "./search.js";
 const googleHosts:Record<Region,string>={
   US:"www.google.com",
   CA:"www.google.ca",
+  AU:"www.google.com.au",
   UK:"www.google.co.uk",
   DE:"www.google.de",
   FR:"www.google.fr"
@@ -16,6 +17,7 @@ const googleHosts:Record<Region,string>={
 const localeMap:Record<Region,string>={
   US:"en-US",
   CA:"en-CA",
+  AU:"en-AU",
   UK:"en-GB",
   DE:"de-DE",
   FR:"fr-FR"
