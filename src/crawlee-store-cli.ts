@@ -28,6 +28,7 @@ async function main(){
     const v=s.trim();
     if(!/^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(v) || rejected.test(v)) return false;
     const compact=v.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(compact.length < 2) return false;
     if(compact===brandCompact) return false;
     if(/^\d+%$/.test(v)) return false;
     if(compact===brandCompact+"get" || compact===brandCompact+"free") return false;
@@ -120,6 +121,35 @@ async function main(){
       const buttons=page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
       revealButtons=await buttons.count().catch(()=>0);
 
+      const readRevealContext=async(target:any)=>{
+        try{
+          const data=await target.evaluate((node:any)=>{
+            let el:any=node;
+            const attrs:string[]=[];
+            const texts:string[]=[];
+            for(let i=0;i<5 && el;i++,el=el.parentElement){
+              for(const name of ["data-code","data-coupon-code","data-promo-code","data-discount-code","content"]){
+                const value=el.getAttribute?.(name);
+                if(value) attrs.push(value);
+              }
+              const text=(el.textContent??"").replace(/\s+/g," ").trim();
+              if(text) texts.push(text.slice(0,1200));
+            }
+            return {attrs,texts};
+          });
+          for(const raw of data.attrs??[]) if(valid(String(raw).trim())) {
+            add([{code:String(raw).trim(),evidence:"reveal card attribute",method:"html"}]);
+          }
+          for(const text of data.texts??[]){
+            for(const re of codePatterns){
+              for(const m of String(text).matchAll(re)){
+                add([{code:m[1],evidence:"reveal card text",method:"html"}]);
+              }
+            }
+          }
+        }catch{}
+      };
+
       const maxAttempts=Math.min(revealButtons,20);
       const usedRevealIndexes=new Set<number>();
       for(let i=0;i<maxAttempts && codes.size<10;i++){
@@ -149,6 +179,7 @@ async function main(){
         if(!target) break;
         usedRevealIndexes.add(targetIndex);
 
+        await readRevealContext(target);
         attemptedClicks++;
         const popupPromise=page.waitForEvent("popup",{timeout:1800}).catch(()=>undefined);
         await target.scrollIntoViewIfNeeded().catch(()=>{});
