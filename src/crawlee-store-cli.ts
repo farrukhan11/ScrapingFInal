@@ -46,7 +46,6 @@ async function main(){
   const crawler=new PlaywrightCrawler({
     maxConcurrency:concurrency,
     maxRequestRetries:0,
-    ignoreHttpErrorStatusCodes:[403,429],
     blockedStatusCodes:[],
     navigationTimeoutSecs:35,
     requestHandlerTimeoutSecs:75,
