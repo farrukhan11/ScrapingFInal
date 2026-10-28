@@ -1,79 +1,86 @@
 [
   {
-    "brand": "Dansko",
-    "website": "https://dansko.com/",
+    "brand": "Morgan & Reid",
+    "website": "https://morganandreid.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Jura",
-    "website": "https://shopjura.com/",
+    "brand": "Leon Cycle",
+    "website": "https://leoncycle.com/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Tiremart.com",
-    "website": "https://tiremart.com/",
+    "brand": "Amber Sceats",
+    "website": "https://ambersceats.com/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Michael Stars",
-    "website": "https://michaelstars.com/",
+    "brand": "Linenly",
+    "website": "https://linenly.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Beautyrest",
-    "website": "https://beautyrest.com/",
+    "brand": "Super Sleeper Pro",
+    "website": "https://supersleeperpro.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Giraffe Tools",
-    "website": "https://giraffetools.com/",
+    "brand": "Helly Hansen",
+    "website": "https://hellyhansen.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "YOOX",
-    "website": "https://yoox.com/",
+    "brand": "Bedworks",
+    "website": "https://bedworks.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "NYDJ",
-    "website": "https://nydj.com/",
+    "brand": "Curtain Wonderland",
+    "website": "https://curtainwonderland.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Step2",
-    "website": "https://step2.com/",
+    "brand": "Living Styles",
+    "website": "https://livingstyles.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "Beaufort Bonnet",
-    "website": "https://thebeaufortbonnetcompany.com/",
+    "brand": "Mattress Crafters",
+    "website": "https://mattresscrafters.com.au/",
     "countries": [
-      "US"
+      "AU"
     ]
   },
   {
-    "brand": "One Kings Lane",
-    "website": "https://onekingslane.com/",
+    "brand": "AAT Kings",
+    "website": "https://aatkings.com/",
     "countries": [
-      "US"
+      "AU"
+    ]
+  },
+  {
+    "brand": "Gym Plus",
+    "website": "https://gymplus.com.au/",
+    "countries": [
+      "AU"
     ]
   }
 ]
