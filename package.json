@@ -12,7 +12,8 @@
     "deal-browser": "tsx src/deal-cli.ts",
     "full-run": "tsx src/pipeline-cli.ts",
     "coupon-crawlee-store": "tsx src/crawlee-store-cli.ts",
-    "coupon-parity": "tsx src/coupon-parity-cli.ts"
+    "coupon-parity": "tsx src/coupon-parity-cli.ts",
+    "google-search-browser": "tsx src/google-search-browser-cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
