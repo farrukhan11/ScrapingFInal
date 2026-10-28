@@ -31,6 +31,15 @@ async function main(){
     if(compact===brandCompact) return false;
     if(/^\d+%$/.test(v)) return false;
     if(compact===brandCompact+"get" || compact===brandCompact+"free") return false;
+
+    // Letter-only coupon codes are valid only when the source actually displays
+    // them as uppercase tokens (e.g. BEST, GIVEAWAY, FREESHIP). This rejects
+    // prose words such as October, Ending, Browse, by, is, Get, See, etc.
+    if(/^[A-Za-z]+$/.test(v) && v !== v.toUpperCase()) return false;
+
+    // Tiny letter-only fragments are almost always prose/noise.
+    if(/^[A-Z]{1,3}$/.test(v)) return false;
+
     return true;
   };
 
@@ -96,12 +105,25 @@ async function main(){
       if(await consent.count() && await consent.isVisible().catch(()=>false)) await consent.click({timeout:1500}).catch(()=>{});
 
       await readPage(page,"initial page");
+
+      const restoreCouponPage=async()=>{
+        if(sameSite(page)) return true;
+        diagnostics.push("Same-tab affiliate redirect ignored: "+page.url());
+        await page.goBack({waitUntil:"domcontentloaded",timeout:4000}).catch(()=>null);
+        if(!sameSite(page)){
+          await page.goto(originalUrl,{waitUntil:"domcontentloaded",timeout:8000}).catch(()=>null);
+        }
+        await page.waitForTimeout(200);
+        return sameSite(page);
+      };
+
       const buttons=page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
       revealButtons=await buttons.count().catch(()=>0);
 
       const maxAttempts=Math.min(revealButtons,20);
       const usedRevealIndexes=new Set<number>();
       for(let i=0;i<maxAttempts && codes.size<10;i++){
+        await restoreCouponPage();
         const fresh=page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
         const count=await fresh.count().catch(()=>0);
         if(!count) break;
@@ -146,6 +168,7 @@ async function main(){
           await popup.close().catch(()=>{});
         }else{
           await page.waitForTimeout(250);
+          await restoreCouponPage();
           await readPage(page,"in-page reveal");
           if(!await readClipboard(page)){
             const modal=await readAndCloseModal(page).catch(()=>({codes:[],modalFound:false,closed:false}));
