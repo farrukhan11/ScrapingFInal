@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PlaywrightCrawler } from "crawlee";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { parseCoupons, type Coupon } from "./extract.js";
+import { type Coupon } from "./extract.js";
 import { readAndCloseModal } from "./modal.js";
 
 const revealPattern=/(?:show|reveal|view|unlock|get|copy)\s+(?:(?:promo|coupon|discount|voucher)\s+)?code/i;
@@ -12,8 +12,7 @@ const codePatterns=[
   /(?:rabattcode|gutscheincode)\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi,
   /code\s+promo\s*[:#-]?\s*([A-Z0-9][A-Z0-9_%.-]{1,31})/gi
 ];
-const rejected=/^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping|sale|required|strict|for|from|with|product|customer|newsletter)$/i;
-const valid=(s:string)=>/^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(s) && !rejected.test(s);
+const rejected=/^(?:choose|select|your|the|this|offer|offers|deal|deals|shop|shopping|click|here|copy|apply|show|reveal|code|coupon|promo|discount|voucher|save|terms|more|details|now|today|free|shipping|sale|required|strict|for|from|with|product|customer|newsletter|true|false|receive|use|enjoy|during|take)$/i;
 const q=(s:string)=>JSON.stringify(s);
 
 async function main(){
@@ -23,6 +22,17 @@ async function main(){
   const brand=value("--brand");
   const concurrency=Math.max(1,Math.min(10,Number(value("--concurrency")??4)));
   if(!input || !brand) throw new Error("Usage: pnpm coupon-crawlee-store --input output/search-123.json --brand \"Dansko\" [--concurrency 4]");
+
+  const brandCompact=brand.toLowerCase().replace(/[^a-z0-9]/g,"");
+  const valid=(s:string)=>{
+    const v=s.trim();
+    if(!/^[a-z0-9][a-z0-9_%.-]{1,31}$/i.test(v) || rejected.test(v)) return false;
+    const compact=v.toLowerCase().replace(/[^a-z0-9]/g,"");
+    if(compact===brandCompact) return false;
+    if(/^\d+%$/.test(v)) return false;
+    if(compact===brandCompact+"get" || compact===brandCompact+"free") return false;
+    return true;
+  };
 
   const payload:any=JSON.parse(await readFile(resolve(input),"utf8"));
   const searches=Array.isArray(payload.searches)?payload.searches:[];
@@ -35,12 +45,20 @@ async function main(){
   const records:any[]=[];
   const crawler=new PlaywrightCrawler({
     maxConcurrency:concurrency,
-    maxRequestRetries:1,
+    maxRequestRetries:0,
+    ignoreHttpErrorStatusCodes:[403,429],
+    blockedStatusCodes:[],
     navigationTimeoutSecs:35,
     requestHandlerTimeoutSecs:75,
     launchContext:{launchOptions:{headless:true}},
-    async requestHandler({request,page,log}){
+    async requestHandler({request,page,log,response}){
       const originalUrl=request.url;
+      const httpStatus=response?.status();
+      if(httpStatus===403 || httpStatus===429){
+        records.push({url:originalUrl,status:"blocked",codes:[],httpStatus});
+        log.warning(`${brand}: ${originalUrl} -> blocked (${httpStatus})`);
+        return;
+      }
       const host=new URL(originalUrl).hostname.replace(/^www\./,"");
       const sameSite=(p:any)=>{try{return new URL(p.url()).hostname.replace(/^www\./,"")===host}catch{return false}};
       const codes=new Map<string,Coupon>();
@@ -52,8 +70,6 @@ async function main(){
 
       const readPage=async(p:any,evidence:string)=>{
         try{
-          const html=await p.content();
-          add(parseCoupons(html).coupons);
           const text=await p.locator("body").innerText({timeout:2500}).catch(()=>"");
           for(const re of codePatterns){
             for(const m of text.matchAll(re)) add([{code:m[1],evidence,method:"html"}]);
@@ -86,20 +102,32 @@ async function main(){
       revealButtons=await buttons.count().catch(()=>0);
 
       const maxAttempts=Math.min(revealButtons,20);
+      const usedRevealIndexes=new Set<number>();
       for(let i=0;i<maxAttempts && codes.size<10;i++){
         const fresh=page.locator('button,a,[role="button"]').filter({hasText:revealPattern});
         const count=await fresh.count().catch(()=>0);
         if(!count) break;
-        const target=fresh.nth(i%count);
-        if(!await target.isVisible().catch(()=>false)) continue;
-        const expired=await target.evaluate((node:any)=>{
-          let el:any=node;
-          for(let n=0;n<5&&el;n++,el=el.parentElement){
-            if(/offer expired|expired/i.test((el.textContent??"").replace(/\s+/g," "))) return true;
-          }
-          return false;
-        }).catch(()=>false);
-        if(expired) continue;
+
+        let target:any=undefined;
+        let targetIndex=-1;
+        for(let j=0;j<count;j++){
+          if(usedRevealIndexes.has(j)) continue;
+          const candidate=fresh.nth(j);
+          if(!await candidate.isVisible().catch(()=>false)) continue;
+          const expired=await candidate.evaluate((node:any)=>{
+            let el:any=node;
+            for(let n=0;n<5&&el;n++,el=el.parentElement){
+              if(/offer expired|expired/i.test((el.textContent??"").replace(/\s+/g," "))) return true;
+            }
+            return false;
+          }).catch(()=>false);
+          if(expired) continue;
+          target=candidate;
+          targetIndex=j;
+          break;
+        }
+        if(!target) break;
+        usedRevealIndexes.add(targetIndex);
 
         attemptedClicks++;
         const popupPromise=page.waitForEvent("popup",{timeout:1800}).catch(()=>undefined);
