@@ -1,0 +1,99 @@
+{
+  "brand": "Dansko",
+  "country": "US",
+  "note": "Golden benchmark captured from Gemini browser run supplied by user. QA only; never used as extraction source.",
+  "sources": [
+    {
+      "urlPrefix": "https://www.groupon.com/coupons/dansko",
+      "status": "extracted",
+      "codes": [
+        "WELCOME10",
+        "ANCC30",
+        "PRACTICALLYEMMA",
+        "CWASHKOWIAK",
+        "FREESHIP",
+        "CYBERGWP",
+        "SHIPFREE",
+        "MAMASHEILASBAKESHOPPE",
+        "SUMMERGWP",
+        "AUTUMNGWP"
+      ]
+    },
+    {
+      "urlPrefix": "https://dansko.com/collections/promo-items",
+      "status": "no_code",
+      "codes": []
+    },
+    {
+      "urlPrefix": "https://simplycodes.com/store/dansko.com",
+      "status": "extracted",
+      "codes": [
+        "CWASHKOWIAK",
+        "PRACTICALLYEMMA",
+        "MAMASHEILASBAKESHOPPE",
+        "SELENA",
+        "REMAKINGJODI",
+        "KIMBERLYB",
+        "GRACEP",
+        "DAN20",
+        "MBIRTHDAYTOTE26",
+        "DANSKO10"
+      ]
+    },
+    {
+      "urlPrefix": "https://dansko.worthepenny.com/coupon/",
+      "status": "blocked",
+      "codes": []
+    },
+    {
+      "urlPrefix": "https://www.reddit.com/r/nursing/comments/q2o1ka/are_there_ever_any_dansko_coupon_codes/",
+      "status": "blocked",
+      "codes": []
+    },
+    {
+      "urlPrefix": "https://shop.id.me/stores/5074-dansko",
+      "status": "no_code",
+      "codes": []
+    },
+    {
+      "urlPrefix": "https://www.usatoday.com/deals/dansko",
+      "status": "blocked",
+      "codes": []
+    },
+    {
+      "urlPrefix": "https://www.facebook.com/fb-answers/dansko-shoes-coupon/",
+      "status": "extracted",
+      "codes": [
+        "CWASHKOWIAK"
+      ]
+    },
+    {
+      "urlPrefix": "https://couponfollow.com/site/dansko.com",
+      "status": "extracted",
+      "codes": [
+        "CWASHKOWIAK",
+        "PRACTICALLYEMMA",
+        "WELCOME10",
+        "ANCC30",
+        "SHIPFREE",
+        "FREESHIP"
+      ]
+    },
+    {
+      "urlPrefix": "https://www.retailmenot.com/view/dansko.com",
+      "status": "extracted",
+      "codes": [
+        "CWASHKOWIAK",
+        "ANCC30",
+        "SHIPFREE",
+        "REMAKINGJODI",
+        "PRACTICALLYEMMA",
+        "CYBERGWP",
+        "WELCOME10",
+        "FREESHIP",
+        "AUTUMNGWP",
+        "SUMMERGWP"
+      ]
+    }
+  ]
+}
