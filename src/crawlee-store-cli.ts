@@ -269,4 +269,9 @@ async function main(){
 
   console.log(JSON.stringify({...result,jsonPath,csvPath},null,2));
 }
-main().catch(err=>{console.error(err);process.exitCode=1});
+main()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
