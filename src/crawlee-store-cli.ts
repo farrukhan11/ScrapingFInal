@@ -46,7 +46,6 @@ async function main(){
   const crawler=new PlaywrightCrawler({
     maxConcurrency:concurrency,
     maxRequestRetries:0,
-    blockedStatusCodes:[],
     navigationTimeoutSecs:35,
     requestHandlerTimeoutSecs:75,
     launchContext:{launchOptions:{headless:true}},
@@ -170,8 +169,15 @@ async function main(){
       log.info(`${brand}: ${originalUrl} -> ${status} (${finalCodes.length} codes)`);
     },
     failedRequestHandler({request,log},error){
-      records.push({url:request.url,status:"error",codes:[],error:error.message});
-      log.error(`Failed ${request.url}: ${error.message}`);
+      const blocked=/403|429|blocked/i.test(error.message);
+      records.push({
+        url:request.url,
+        status:blocked?"blocked":"error",
+        codes:[],
+        error:error.message
+      });
+      if(blocked) log.warning(`${brand}: ${request.url} -> blocked`);
+      else log.error(`Failed ${request.url}: ${error.message}`);
     }
   });
 
