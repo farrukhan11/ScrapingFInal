@@ -142,7 +142,7 @@ async function main(){
       });
       log.info(`${brand}: ${originalUrl} -> ${status} (${finalCodes.length} codes)`);
     },
-    failedRequestHandler({request,error,log}){
+    failedRequestHandler({request,log},error){
       records.push({url:request.url,status:"error",codes:[],error:error.message});
       log.error(`Failed ${request.url}: ${error.message}`);
     }
