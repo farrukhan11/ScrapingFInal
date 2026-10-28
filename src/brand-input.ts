@@ -54,6 +54,17 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
       ? row.split("|").map(x=>x.trim()).filter(Boolean)
       : row.split(/\t|,/).map(x=>x.trim()).filter(Boolean);
     if(cells.length<2) continue;
+
+    // Preferred plain-text format: Brand Name|domain.com|US
+    if(row.includes("|") && cells.length>=3){
+      const brand=String(cells[0]).trim();
+      const website=normalizeWebsite(String(cells[1]));
+      const country=normalizeCountry(String(cells[2]));
+      if(!brand || !countrySet.has(country)) continue;
+      out.push({brand,website,countries:[country]});
+      continue;
+    }
+
     const rawWebsiteCell=cells[0];
     const markdownUrl=rawWebsiteCell.match(/\]\((https?:\/\/[^\s")]+)[^)]*\)/i)?.[1];
     const plain=rawWebsiteCell.replace(/\[[^\]]+\]\([^)]*\)/g,"").trim();
