@@ -257,7 +257,9 @@ async function main(){
   const safe=String(search.brand).replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase();
   const jsonPath=resolve("output",`crawlee-${safe}-${Date.now()}.json`);
   const csvPath=resolve("output",`crawlee-${safe}-${Date.now()}.csv`);
-  await writeFile(jsonPath,JSON.stringify(result,null,2));
+  const jsonText=JSON.stringify(result,null,2);
+  await writeFile(jsonPath,jsonText);
+  await writeFile(resolve("output",`crawlee-${safe}-latest.json`),jsonText);
 
   const rows=[["brand","country","source_url","coupon_code","status"]];
   for(const r of records){
@@ -266,6 +268,7 @@ async function main(){
   }
   const csv=rows.map(row=>row.map((v:any)=>q(String(v))).join(",")).join("\n");
   await writeFile(csvPath,csv);
+  await writeFile(resolve("output",`crawlee-${safe}-latest.csv`),csv);
 
   console.log(JSON.stringify({...result,jsonPath,csvPath},null,2));
 }
