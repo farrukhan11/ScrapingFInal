@@ -10,6 +10,7 @@ const googleHosts:Record<Region,string>={
   CA:"www.google.ca",
   AU:"www.google.com.au",
   UK:"www.google.co.uk",
+  NL:"www.google.nl",
   DE:"www.google.de",
   FR:"www.google.fr"
 };
@@ -19,6 +20,7 @@ const localeMap:Record<Region,string>={
   CA:"en-CA",
   AU:"en-AU",
   UK:"en-GB",
+  NL:"nl-NL",
   DE:"de-DE",
   FR:"fr-FR"
 };
