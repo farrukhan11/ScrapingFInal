@@ -44,7 +44,10 @@ async function main() {
   }
   await mkdir(resolve("output"), { recursive: true });
   const file = resolve("output", `search-${Date.now()}.json`);
-  await writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString(), searches, failures }, null, 2));
+  const latest = resolve("output", "search-latest.json");
+  const payload = JSON.stringify({ generatedAt: new Date().toISOString(), searches, failures }, null, 2);
+  await writeFile(file, payload);
+  await writeFile(latest, payload);
   const total=searches.reduce((sum,s)=>sum+s.results.length,0);
   console.log(`Saved ${total} results to ${file}`);
   if (failures.length) process.exitCode = 1;
