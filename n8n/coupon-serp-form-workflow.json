@@ -1,0 +1,117 @@
+{
+  "name": "Coupon SERP - Paste Brands and Run",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "coupon-serp-search",
+        "formTitle": "Coupon SERP Search",
+        "formDescription": "Paste one brand per line in this format: Brand|domain|country",
+        "formFields": {
+          "values": [
+            {
+              "fieldType": "textarea",
+              "fieldLabel": "Brands",
+              "placeholder": "Morgan & Reid|morganandreid.com.au|AU\nLeon Cycle|leoncycle.com|AU",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0c3ef9c6-9951-4677-bca2-322138f7dc01",
+      "name": "Paste Brands",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -500,
+        0
+      ],
+      "webhookId": "coupon-serp-search-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = String($json.Brands ?? $json.brands ?? '').trim();\n\nif (!raw) {\n  throw new Error('Brands list is empty');\n}\n\nconst lines = raw\n  .split(/\\r?\\n/)\n  .map(s => s.trim())\n  .filter(Boolean);\n\nconst valid = [];\nconst invalid = [];\n\nfor (const line of lines) {\n  const parts = line.split('|').map(s => s.trim());\n  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {\n    invalid.push(line);\n    continue;\n  }\n  valid.push(parts.join('|'));\n}\n\nif (!valid.length) {\n  throw new Error('No valid rows. Use: Brand|domain|country');\n}\n\nif (invalid.length) {\n  throw new Error('Invalid rows: ' + invalid.join(' ; '));\n}\n\nreturn [{\n  json: {\n    brandCount: valid.length,\n    brandsText: valid.join('\\n'),\n    inputBase64: Buffer.from(valid.join('\\n'), 'utf8').toString('base64')\n  }\n}];"
+      },
+      "id": "5796d53b-ddcc-4bc6-93b3-a0534f30875f",
+      "name": "Prepare Brand List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -250,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "cwd": "/var/www/ScrapingFInal",
+        "command": "={{ \"printf '%s' '\" + $json.inputBase64 + \"' | base64 -d > /tmp/n8n-brands.txt && pnpm coupon-search --input /tmp/n8n-brands.txt >/tmp/coupon-search.log 2>&1 && cat output/search-latest.json\" }}"
+      },
+      "id": "7f40d0a4-b128-4450-9941-536a4a5957cd",
+      "name": "Run Serper Search",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.stdout;\n\nif (!raw) {\n  throw new Error('Serper search returned empty stdout');\n}\n\nconst data = JSON.parse(raw);\n\nreturn [{\n  json: {\n    generatedAt: data.generatedAt,\n    brandCount: data.searches?.length ?? 0,\n    totalUrls: (data.searches ?? []).reduce((sum, x) => sum + (x.results?.length ?? 0), 0),\n    searches: data.searches ?? [],\n    failures: data.failures ?? []\n  }\n}];"
+      },
+      "id": "35922ea5-b688-4b77-bf79-50b6bfed58a1",
+      "name": "Parse Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Paste Brands": {
+      "main": [
+        [
+          {
+            "node": "Prepare Brand List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Brand List": {
+      "main": [
+        [
+          {
+            "node": "Run Serper Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Serper Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0e96a1d8-e9c8-42d6-a024-b7e39276c200",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
