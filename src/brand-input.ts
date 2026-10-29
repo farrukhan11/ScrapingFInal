@@ -19,7 +19,7 @@ export function deriveBrand(website:string):string {
   const u=new URL(raw);
   const parts=u.hostname.toLowerCase().replace(/^www\./,"").split(".");
   let label=parts[0];
-  if(["us","ca","au","uk","de","fr"].includes(label) && parts.length>2) label=parts[1];
+  if(["us","ca","au","uk","nl","de","fr"].includes(label) && parts.length>2) label=parts[1];
   return label.replace(/[-_]+/g," ").replace(/\b\w/g,c=>c.toUpperCase());
 }
 
@@ -39,7 +39,7 @@ export async function loadBrandBatch(path:string):Promise<BrandBatchItem[]> {
       const website=normalizeWebsite(String(item.website??item.url??""));
       const countriesRaw=item.countries ?? (item.country ? [item.country] : ["US"]);
       const countries=countriesRaw.map((x:any)=>normalizeCountry(String(x)));
-      if(!countries.length || countries.some((c:Region)=>!countrySet.has(c))) throw new Error("Invalid country; use US, CA, AU, UK/GB, DE or FR");
+      if(!countries.length || countries.some((c:Region)=>!countrySet.has(c))) throw new Error("Invalid country; use US, CA, AU, UK/GB, NL, DE or FR");
       return {brand:String(item.brand??deriveBrand(website)).trim(),website,countries};
     });
   }
