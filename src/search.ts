@@ -5,8 +5,9 @@ export const regions = {
   CA: { gl: "ca", hl: "en", suffix: "coupon code" },
   AU: { gl: "au", hl: "en", suffix: "coupon code" },
   UK: { gl: "uk", hl: "en", suffix: "discount code" },
+  NL: { gl: "nl", hl: "nl", suffix: "kortingscode" },
   DE: { gl: "de", hl: "de", suffix: "Rabattcode" },
-  FR: { gl: "fr", hl: "fr", suffix: "code promo" },
+  FR: { gl: "fr", hl: "fr", suffix: "code de réduction" },
 } as const;
 export type Region = keyof typeof regions;
 export const regionNames = Object.keys(regions) as Region[];
